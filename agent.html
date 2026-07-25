@@ -78,13 +78,56 @@ function runTool(name, args) {
         + DATA.supply.linked.map(x => x.商品).join('、') + ' 這幾項能從預測貫通到庫存。'};
     }
     case 'write_alert': {
-      if (DENY.test(args.filename)) return {拒絕:'檔名不在允許範圍'};
-      const f = args.filename.replace(/[^\w\u4e00-\u9fa5.\-]/g, '_');
-      if (!/^alerts\//.test(args.filename) && !/\.md$/.test(f))
-        return {拒絕:'只允許寫入 alerts/ 目錄下的 .md 檔'};
-      DATA._alerts.push({name:f, body:args.content});
-      return {結果:'已寫入', 檔名:`alerts/${f}`, 位元組:args.content.length};
-    }
+  const filename =
+    typeof args?.filename === 'string'
+      ? args.filename.trim()
+      : '';
+
+  const content =
+    typeof args?.content === 'string'
+      ? args.content
+      : '';
+
+  if (!filename) {
+    return {
+      拒絕: 'write_alert 缺少 filename，請重新呼叫並提供檔名'
+    };
+  }
+
+  if (!content) {
+    return {
+      拒絕: 'write_alert 缺少 content，請重新呼叫並提供內容'
+    };
+  }
+
+  if (DENY.test(filename)) {
+    return {
+      拒絕: '檔名不在允許範圍'
+    };
+  }
+
+  const rawName = filename.replace(/^alerts\//, '');
+
+  const safeName =
+    rawName.replace(/[^\w\u4e00-\u9fa5.\-]/g, '_');
+
+  if (!/\.md$/i.test(safeName)) {
+    return {
+      拒絕: '只允許寫入 alerts/ 目錄下的 .md 檔'
+    };
+  }
+
+  DATA._alerts.push({
+    name: safeName,
+    body: content
+  });
+
+  return {
+    結果: '已寫入',
+    檔名: `alerts/${safeName}`,
+    位元組: new TextEncoder().encode(content).length
+  };
+}
     default:
       return {拒絕:`沒有名為 ${name} 的工具`};
   }
