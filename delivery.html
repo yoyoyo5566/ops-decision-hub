@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>配送｜AI 智慧營運決策中樞</title>
+<link rel="stylesheet" href="assets/app.css">
+<link rel="stylesheet" href="assets/mechanicus.css">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+</head>
+<body>
+<div class="wrap" id="app">載入中…</div>
+<script src="assets/chart.js"></script>
+<script src="assets/app.js"></script>
+<script>
+mountNav('delivery.html');
+(async () => {
+  const box = document.getElementById('app');
+  try {
+    const D = await load('delivery');
+    const nb = D.naive.summary, op = D.optimized.summary;
+    const depot = D.stores.find(s => s.store_id === 'DEPOT');
+    const hhmm = m => `${String(Math.floor(m/60)).padStart(2,'0')}:${String(m%60).padStart(2,'0')}`;
+    const toMin = t => { const [h,m] = String(t).split(':').map(Number); return h*60+m; };
+    const cold = D.vehicles.filter(v => v.temp_zone === '冷藏');
+    const coldCap = cold.reduce((a,v) => a+v.capacity_kg, 0);
+    const coldDem = D.stores.filter(s => s.temp_zone === '冷藏')
+      .reduce((a,s) => a+s.demand_kg, 0);
+    const warmCap = D.vehicles.filter(v => v.temp_zone === '常溫')
+      .reduce((a,v) => a+v.capacity_kg, 0);
+    const warmDem = D.stores.filter(s => s.temp_zone === '常溫')
+      .reduce((a,s) => a+s.demand_kg, 0);
+    const firstDrop = D.stress.find(s => s.未能服務門市 > 0);
+    const saving = nb.total_cost - op.total_cost;
+
+    box.innerHTML = `
+      <div class="eyebrow">供應履約線・配送</div>
+      <h1 class="warn">按地理分區的直覺排法，有 ${nb.violations} 家門市送不進可收貨時段。</h1>
+      <p class="lede">
+        最佳化之後違反歸零，成本還少了 NT$${fmt(saving,1)}
+        （${(saving/nb.total_cost*100).toFixed(1)}%）、里程少了 ${fmt(nb.total_km-op.total_km,1)} 公里。
+        但這個省下來的金額不是重點——<b>二十個點的規模本來就省不了多少。
+        真正的價值是「找到一個能跑的方案」。</b>
+      </p>
+
+      <div class="metrics">
+        <div class="m alert"><div class="k">直覺排法</div>
+          <div class="v">${nb.violations} 家</div>
+          <div class="d">送不進時段・NT$${fmt(nb.total_cost,0)}</div></div>
+        <div class="m good"><div class="k">最佳化後</div>
+          <div class="v">${op.violations} 家</div>
+          <div class="d">全部準時・NT$${fmt(op.total_cost,0)}</div></div>
+        <div class="m alert"><div class="k">冷藏產能使用率</div>
+          <div class="v">${(coldDem/coldCap*100).toFixed(1)}%</div>
+          <div class="d">${fmt(coldDem)} / ${fmt(coldCap)} 公斤</div></div>
+        <div class="m good"><div class="k">常溫產能使用率</div>
+          <div class="v">${(warmDem/warmCap*100).toFixed(1)}%</div>
+          <div class="d">閒置 ${fmt(warmCap-warmDem)} 公斤・不可混載</div></div>
+      </div>
+
+      <h2>切換看看：紅點會消失</h2>
+      <p class="cap">
+        灰帶是每家門市可以收貨的時段，圓點是實際抵達時間。
+        點掉在灰帶外面就是白跑一趟——紅色標出來的就是。
+      </p>
+      <div class="ctrl">
+        <div class="seg" id="seg">
+          <button data-k="naive" class="on">按地理分區的直覺排法</button>
+          <button data-k="optimized">最佳化排程</button>
+        </div>
+        <span class="pill" id="segNote"></span>
+      </div>
+      <div class="panel"><div id="ribbon"></div>
+        <div class="legend">
+          <span><i style="background:#DCE2E1"></i>可收貨時段</span>
+          <span><i style="background:${C.chill}"></i>準時抵達</span>
+          <span><i style="background:${C.alert}"></i>不在時段內</span></div></div>
+      <div id="violBox"></div>
+
+      <h2>路線圖</h2>
+      <p class="cap">
+        顏色代表車輛，數字是停靠順序，方框是主倉。
+        這張圖沒有街道底圖，是用門市經緯度直接投影的——好處是完全不需要外部連線，
+        在任何網路環境下都打得開。
+      </p>
+      <div class="panel"><div id="map" class="map-terminal" style="height:480px;width:100%"></div>
+        <div class="legend" id="mapLeg"></div></div>
+
+      <h2>各車派工</h2>
+      <div class="panel"><div class="scroll"><table id="routes"></table></div></div>
+      <div class="panel" id="seqBox"></div>
+
+      <h2>為什麼要多花這一趟</h2>
+      <p>
+        兩個方案的成本只差 NT$${fmt(Math.abs(saving),1)}。如果只賣「省錢」，
+        對方會問：「才這樣？那為什麼要花錢買系統？」
+      </p>
+      <p>
+        真正的差別在<b>可行性</b>。直覺排法那 ${nb.violations} 家門市，
+        車開到了但店還沒開門或已經過了收貨時間——貨帶回來，隔天再跑一趟，
+        那才是真正的成本，而且它不會出現在油錢帳上。
+        二十個點的規模看不出金額差距，五十個點以上才會。
+        <b>所以這一頁賣的是「找得到能跑的方案」，不是「省了幾趴」。</b>
+      </p>
+
+      <h2>需求成長多少會撐不住</h2>
+      <p class="lede">
+        冷藏需求 ${fmt(coldDem)} 公斤對上冷藏車隊 ${fmt(coldCap)} 公斤，餘裕只剩 ${fmt(coldCap-coldDem)} 公斤。
+        逐級加壓後，<b>需求成長 ${firstDrop ? firstDrop.需求成長.replace('+','') : ''} 時就有門市當天送不到</b>。
+        常溫車此時還有 ${fmt(warmCap-warmDem)} 公斤空間，但溫層是食安限制，不能混載。
+      </p>
+      <div class="panel"><div class="scroll"><table>
+        <thead><tr><th>需求成長</th><th class="n">總需求</th>
+          <th class="n">無法服務的門市</th><th class="n">總成本</th></tr></thead>
+        <tbody>${D.stress.map(s => `<tr${s.未能服務門市>0?` style="background:#FBEFEE"`:''}>
+          <td>${s.需求成長}</td><td class="n">${fmt(s.總需求kg)} kg</td>
+          <td class="n" style="${s.未能服務門市>0?`color:${C.alert};font-weight:700`:''}">
+            ${s.未能服務門市}</td>
+          <td class="n">NT$${fmt(s.總成本,1)}</td></tr>`).join('')}</tbody>
+      </table></div>
+      <p class="cap"><b>結論：瓶頸不是車不夠，是冷藏車不夠。</b>
+        再加一台常溫車完全解決不了這件事。</p></div>
+
+      <h2>車隊配置</h2>
+      <div class="panel"><div class="scroll"><table>
+        <thead><tr><th>車輛</th><th>溫層</th><th class="n">容量</th><th class="n">油耗</th>
+          <th class="n">固定成本</th><th class="n">工時上限</th></tr></thead>
+        <tbody>${D.vehicles.map(v => `<tr>
+          <td>${v.vehicle_name}</td>
+          <td><span class="tag t-${v.temp_zone}">${v.temp_zone}</span></td>
+          <td class="n">${fmt(v.capacity_kg)} kg</td>
+          <td class="n">${v.fuel_cost_per_km} 元/km</td>
+          <td class="n">${fmt(v.fixed_cost_per_day)} 元/天</td>
+          <td class="n">${v.max_work_min} 分</td></tr>`).join('')}</tbody>
+      </table></div></div>
+
+      <div class="note">
+        求解器：OR-Tools 的 CVRPTW 模型，起始解 PATH_CHEAPEST_ARC、改善策略 GUIDED_LOCAL_SEARCH。
+        溫層與車輛容量為硬約束，時窗在最佳化方案中設為硬約束。
+        成本 = 各車油耗單價 × 里程 + 固定成本。距離與行駛時間取自實際的路網矩陣，
+        不是直線距離估算。對照組是「按溫層與地理分區指派、再用最近鄰排序、
+        早上九點出車」的人工做法。
+      </div>
+      ${nextLink('agent.html','不用人盯',
+        '這些判斷每天都要做一次——哪些可以交給機器，哪些不行')}
+      ${footer()}`;
+
+    const drawRibbon = k => {
+      const stops = D[k].stops;
+      const rows = D.stores
+        .filter(s => s.store_id !== 'DEPOT' && s.tw_open)
+        .map(s => {
+          const st = stops.find(x => x.store_id === s.store_id) || {};
+          const bad = (st.late_min > 0) || (st.early_min > 0);
+          return {
+            name: s.store_name, open: toMin(s.tw_open), close: toMin(s.tw_close),
+            tw: `${s.tw_open}–${s.tw_close}`, arrive: st.arrive_min ?? null, bad,
+            _late: st.late_min || 0, _early: st.early_min || 0,
+            _v: st.vehicle_name || '', _a: st.arrive_hhmm || '',
+            tipText: `${s.store_name}　${st.vehicle_name || ''}　抵達 ${st.arrive_hhmm || '—'}`
+              + (st.late_min > 0 ? `　遲到 ${st.late_min} 分` : '')
+              + (st.early_min > 0 ? `　早到 ${st.early_min} 分` : ''),
+          };
+        }).sort((a,b) => a.open - b.open);
+      el('ribbon').innerHTML = ribbon(rows, {w:700, padL:152});
+
+      const bad = rows.filter(r => r.bad);
+      const s = D[k].summary;
+      el('segNote').textContent =
+        `里程 ${s.total_km} 公里・成本 NT$${fmt(s.total_cost,1)}・時段外抵達 ${bad.length} 家`;
+      el('violBox').innerHTML = bad.length ? `
+        <div class="panel"><h3 style="color:${C.alert}">${bad.length} 家門市白跑</h3>
+        <div class="scroll"><table>
+          <thead><tr><th>門市</th><th>車輛</th><th class="n">抵達</th>
+            <th class="n">可收貨</th><th>問題</th></tr></thead>
+          <tbody>${bad.map(r => `<tr><td>${r.name}</td><td>${r._v}</td>
+            <td class="n">${r._a}</td><td class="n">${r.tw}</td>
+            <td style="color:${C.alert}">${r._late>0
+              ? `過了關門時間 ${r._late} 分鐘` : `早到 ${r._early} 分鐘，店還沒開`}</td>
+            </tr>`).join('')}</tbody></table></div></div>` :
+        `<div class="panel" style="border-left:3px solid ${C.good}">
+          <b style="color:${C.good}">全部 ${rows.length} 家門市都在可收貨時段內送達。</b>
+          <span class="cap"> 每一趟都收得到貨，沒有白跑。</span></div>`;
+    };
+
+    let leafMap = null, leafLayer = null;
+    const drawMap = k => {
+      const stops = D[k].stops;
+      const vc = {'V1':'#22ff62','V2':'#ffd064','V3':'#9ab8ff'};
+      if (typeof L === 'undefined') {   // Leaflet 沒載到 → 退回 SVG
+        el('map').innerHTML = routeMap(D.stores.filter(s=>s.store_id!=='DEPOT'),
+          stops, depot, {w:700, h:480});
+        return;
+      }
+      if (!leafMap) {
+        leafMap = L.map('map', {scrollWheelZoom:false, attributionControl:true, zoomControl:true})
+          .setView([depot.lat, depot.lon], 12);
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+          attribution:'© OpenStreetMap · © CARTO', maxZoom:19, subdomains:'abcd',
+          opacity:1
+        }).addTo(leafMap);
+      }
+      if (leafLayer) leafMap.removeLayer(leafLayer);
+      leafLayer = L.layerGroup().addTo(leafMap);
+      // 主倉
+      L.marker([depot.lat, depot.lon], {icon: L.divIcon({className:'', html:
+        `<div class="route-depot-marker"></div>`, iconSize:[22,22], iconAnchor:[11,11]})})
+        .bindTooltip('台中工業區主倉', {className:'terminal-map-tip',direction:'top',offset:[0,-11]})
+        .addTo(leafLayer);
+      // 各車路線與停靠
+      const byV = {};
+      stops.forEach(s2 => { (byV[s2.vehicle_id]=byV[s2.vehicle_id]||[]).push(s2); });
+      Object.entries(byV).forEach(([vid, list]) => {
+        list.sort((a,b2)=>a.stop_order-b2.stop_order);
+        const pts = [[depot.lat,depot.lon], ...list.map(s2=>[s2.lat,s2.lon]), [depot.lat,depot.lon]];
+        const routeColor = vc[vid]||'#22ff62';
+        L.polyline(pts, {color:'#001006', weight:8, opacity:.72, interactive:false}).addTo(leafLayer);
+        L.polyline(pts, {color:routeColor, weight:4, opacity:1}).addTo(leafLayer);
+        list.forEach(s2 => {
+          const bad = (s2.late_min>0)||(s2.early_min>0);
+          const markerColor = bad ? '#ff5362' : routeColor;
+          L.marker([s2.lat,s2.lon], {icon: L.divIcon({className:'', html:
+            `<div class="route-stop-marker" style="--route-color:${markerColor}">${s2.stop_order}</div>`,
+            iconSize:[24,24], iconAnchor:[12,12]})})
+            .bindTooltip(`${s2.stop_order}. ${s2.store_name}<br>${s2.vehicle_name}　抵達 ${s2.arrive_hhmm}　${s2.demand_kg} kg`,
+              {className:'terminal-map-tip',direction:'top',offset:[0,-12]})
+            .addTo(leafLayer);
+        });
+      });
+      setTimeout(()=>leafMap.invalidateSize(), 100);
+    };
+
+    const drawRest = k => {
+      const stops = D[k].stops, routes = D[k].routes;
+      drawMap(k);
+      const vc = {'V1':C.chill,'V2':C.amber,'V3':C.frost};
+      el('mapLeg').innerHTML = D.vehicles.map(v =>
+        `<span><i style="background:${vc[v.vehicle_id]}"></i>${v.vehicle_name}</span>`).join('')
+        + `<span><i style="background:${C.alert}"></i>時段外抵達</span>`
+        + `<span><i style="background:${C.navy}"></i>主倉</span>`;
+
+      el('routes').innerHTML = `
+        <thead><tr><th>車輛</th><th>溫層</th><th class="n">停靠</th><th class="n">載重</th>
+          <th class="n">滿載率</th><th class="n">里程</th><th class="n">工時</th>
+          <th class="n">時段外</th><th class="n">成本</th></tr></thead>
+        <tbody>${routes.map(r => `<tr>
+          <td>${r.vehicle_name}</td>
+          <td><span class="tag t-${r.temp_zone}">${r.temp_zone}</span></td>
+          <td class="n">${r.stops}</td><td class="n">${fmt(r.load_kg)} kg</td>
+          <td class="n" style="${r.util_pct>90?`color:${C.alert};font-weight:700`:''}">
+            ${r.util_pct}%</td>
+          <td class="n">${r.distance_km}</td>
+          <td class="n" style="${r.work_min>=470?`color:${C.alert};font-weight:700`:''}">
+            ${r.work_min} 分</td>
+          <td class="n" style="${r.violations>0?`color:${C.alert};font-weight:700`:''}">
+            ${r.violations} 家</td>
+          <td class="n">${fmt(r.total_cost,1)}</td></tr>`).join('')}</tbody>`;
+
+      el('seqBox').innerHTML = `<h3>停靠順序</h3>` + routes.map(r =>
+        `<p style="font-size:.88rem"><b>${r.vehicle_name}</b>
+          <span class="tag t-${r.temp_zone}">${r.temp_zone}</span><br>
+          <span style="color:var(--mute)">${r.sequence}</span></p>`).join('');
+    };
+
+    let cur = 'naive';
+    const render = () => { drawRibbon(cur); drawRest(cur); };
+    el('seg').addEventListener('click', e => {
+      const b = e.target.closest('button'); if (!b) return;
+      [...el('seg').children].forEach(x => x.classList.toggle('on', x === b));
+      cur = b.dataset.k; render();
+    });
+    render();
+  } catch (e) { fail(box, e); }
+})();
+</script>
+</body>
+</html>

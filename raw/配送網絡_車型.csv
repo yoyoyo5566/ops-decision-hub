@@ -1,0 +1,4 @@
+﻿vehicle_id,vehicle_name,temp_zone,capacity_kg,fuel_cost_per_km,fixed_cost_per_day,max_work_min
+V1,2.5T 冷藏車,冷藏,1500,7,800,480
+V2,3.5T 常溫車,常溫,2200,10,1200,480
+V3,1T 機車快遞,冷藏,200,3,300,480

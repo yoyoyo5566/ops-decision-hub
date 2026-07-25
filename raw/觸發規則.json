@@ -1,0 +1,32 @@
+{
+  "thresholds": {
+    "emergency": 0.5,
+    "warning": 1.0
+  },
+  "alert_format": {
+    "filename_pattern": "alert_{YYYYMMDD}.md",
+    "emergency_label": "緊急",
+    "warning_label": "普通",
+    "normal_label": "正常"
+  },
+  "agent_constraints": {
+    "allow": [
+      "Read(*.csv)",
+      "Read(*.json)",
+      "Write(alerts/*.md)",
+      "Bash(ls:*)",
+      "Bash(cat:*)"
+    ],
+    "deny": [
+      "Bash(rm:*)",
+      "Bash(curl:*)",
+      "Bash(git push:*)",
+      "Write(inventory.csv)"
+    ]
+  },
+  "metadata": {
+    "version": "v1.0",
+    "data_date": "2026-05-19",
+    "source_csv": "inventory.csv"
+  }
+}

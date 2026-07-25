@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>方法｜AI 智慧營運決策中樞</title>
+<link rel="stylesheet" href="assets/app.css">
+<link rel="stylesheet" href="assets/mechanicus.css">
+<style>.said{background:#fff;border:1px solid var(--line);border-left:3px solid var(--good);
+  border-radius:3px;padding:.75rem 1rem;margin-bottom:.6rem}
+.said b{display:block;margin-bottom:.15rem}
+.said span{font-size:.88rem;color:#41505A}</style>
+</head>
+<body>
+<div class="wrap" id="app">載入中…</div>
+<script src="assets/chart.js"></script>
+<script src="assets/app.js"></script>
+<script>
+mountNav('method.html');
+(async () => {
+  const box = document.getElementById('app');
+  try {
+    const [L, E] = await Promise.all([load('lineage'), load('events')]);
+
+    box.innerHTML = `
+      <div class="eyebrow">方法與資料</div>
+      <h1>四個「我試過，然後我沒有這樣做」的決定。</h1>
+      <p class="lede">
+        跑得動模型現在不稀奇。這份東西真正想證明的是：面對一批陌生資料，
+        知道什麼時候不該用它。以下四件事全部有計算依據，可以在對應頁面上驗證。
+      </p>
+
+      <div class="said"><b>十支商品，六支沒有用模型</b>
+        <span>礦泉水的誤差從 19.9% 降到 4.6%，值得。塑膠袋從 10.6% 惡化到 13.4%，
+        那一支就退回原本的算法。模型維護是有成本的，跑不贏就不該上線。</span></div>
+      <div class="said"><b>丟掉信賴度最高的那批規則</b>
+        <span>以塑膠袋為結果的規則信賴度 27.8%，但塑膠袋本來就出現在 23.5% 的訂單裡，
+        提升度只有 1.03 到 1.18。看起來漂亮，實際上等於沒說。</span></div>
+      <div class="said"><b>不用最深的樹</b>
+        <span>深度加到 12，訓練集準確率衝到 100%，驗證集反而從 92.9% 掉到 91.1%。
+        用深度 4，因為那是還能舉一反三的位置，也因為每條判斷路徑都要讀得出來。</span></div>
+      <div class="said"><b>推薦一個更貴的配送方案</b>
+        <span>最佳化後的方案成本其實更低，但就算它更貴我也會推薦——
+        因為直覺排法有 4 家門市送不進可收貨時段，貨帶回來隔天再跑一趟，
+        那筆成本不會出現在油錢帳上。</span></div>
+
+      <h2>資料是模擬生成的</h2>
+      <p>
+        這批資料來自課程情境，不是任何一家真實企業的營運紀錄。
+        對概念驗證來說這是常態——真實客戶資料本來也不會外流。
+      </p>
+      <p>
+        <b>重點不在資料真假，在數字有沒有被算出來。</b>
+        這個網站是靜態的，但每一個數字都由倉庫裡的 <code>build_static.py</code>
+        實際跑出來：決策樹重新配適、Prophet 重新回測、Apriori 重新挖掘、
+        OR-Tools 重新求解，再匯出成 JSON。換一批資料重跑，全站數字一起更新。
+        程式碼跟網頁放在同一個倉庫，推導過程都看得到。
+      </p>
+
+      <h2>三套識別碼，長得像但不是同一件事</h2>
+      <p class="cap">
+        這是整份分析花最多時間確認的地方。格式相近的欄位最容易被誤接，
+        接錯的結果會是「某家量販店的平均客單價是 55 萬元」這種在報表上很難解釋的數字。
+      </p>
+      <div class="panel"><div class="scroll"><table>
+        <thead><tr><th>欄位</th><th>體系 A</th><th>體系 B</th><th>實際差異</th>
+          <th class="n">字面交集</th><th>處理方式</th></tr></thead>
+        <tbody>${L.conflicts.map(c => `<tr>
+          <td><b>${c.欄位}</b></td><td>${c.體系A}</td><td>${c.體系B}</td>
+          <td>${c.實際差異}</td><td class="n">${c.字面交集}</td>
+          <td>${c.處理方式}</td></tr>`).join('')}</tbody>
+      </table></div></div>
+
+      <h2>每張表的來源與用途</h2>
+      <div class="panel"><div class="scroll"><table>
+        <thead><tr><th>資料表</th><th>主鍵</th><th class="n">筆數</th>
+          <th>內容</th><th>屬於哪條線</th></tr></thead>
+        <tbody>${L.tables.map(t => `<tr>
+          <td>${t.表}</td><td style="font-size:.8rem">${t.主鍵}</td>
+          <td class="n">${fmt(t.筆數)}</td><td>${t.語意}</td>
+          <td><span class="pill">${t.線}</span></td></tr>`).join('')}</tbody>
+      </table></div></div>
+
+      <h2>誰該是哪個欄位的權威來源</h2>
+      <p class="cap">
+        整合的難處不在技術，在治理。同一個欄位有兩個系統都能改，衝突就無解。
+        M 表示該系統是這個欄位的權威來源，S 表示唯讀訂閱。
+      </p>
+      <div class="panel"><div class="scroll"><table>
+        <thead><tr><th>欄位</th><th class="n">ERP</th><th class="n">WMS</th>
+          <th class="n">TMS</th><th class="n">CRM</th><th class="n">BI</th></tr></thead>
+        <tbody>${L.mdm.map(r => `<tr><td>${r.欄位}</td>${
+          ['ERP','WMS','TMS','CRM','BI'].map(k => `<td class="n" ${
+            r[k]==='M'?`style="color:${C.chill};font-weight:700"`:''}>${r[k]||'—'}</td>`).join('')
+        }</tr>`).join('')}</tbody>
+      </table></div>
+      <p class="cap">權威來源不是「資料量最大」的系統，是「有權更動」的那個。
+        客戶地址的權威在客服系統，因為改地址的人是客服，不是會計。</p></div>
+
+      <h2>換成你們的資料需要什麼</h2>
+      <p>各頁的計算都從 <code>raw/</code> 底下的 CSV 讀取，欄位對得上就能直接替換重跑。最小欄位集：</p>
+      <div class="panel"><div class="scroll"><table>
+        <thead><tr><th>模組</th><th>需要的欄位</th></tr></thead>
+        <tbody>
+          <tr><td>流失預測</td><td>顧客編號、最近購買天數、購買次數、累積消費、客訴次數、往來天數、是否已流失</td></tr>
+          <tr><td>需求預測</td><td>商品編號、月份、銷量（至少 24 個月，36 個月較穩）</td></tr>
+          <tr><td>商品關聯</td><td>訂單編號、商品名稱（每張訂單一列一品）</td></tr>
+          <tr><td>庫存風險</td><td>商品編號、現有量、安全存量、前置期、溫層</td></tr>
+          <tr><td>配送最佳化</td><td>門市座標、需求量、可收貨時段、溫層；車輛容量、油耗、固定成本、工時上限</td></tr>
+          <tr><td>客訴分析</td><td>時間、管道、內容、情緒、痛點分類</td></tr>
+        </tbody>
+      </table></div>
+      <p class="cap">
+        最花時間的不是接資料，是確認「你們的商品編號跟你們的庫存編號是不是同一套」。
+        這份作品裡兩套主檔只對得上 4 項，那不是資料的錯，是每一家公司都會遇到的事。
+      </p></div>
+
+      <h2>用到的工具</h2>
+      <div class="panel"><div class="scroll"><table>
+        <thead><tr><th>環節</th><th>工具</th><th>為什麼是它</th></tr></thead>
+        <tbody>
+          <tr><td>流失預測</td><td>scikit-learn 決策樹</td><td>每條判斷路徑都讀得出來</td></tr>
+          <tr><td>需求預測</td><td>Prophet ＋ 四種基準法</td><td>基準法是為了知道模型值不值得上</td></tr>
+          <tr><td>商品關聯</td><td>mlxtend Apriori</td><td>規則能直接對應到促銷動作</td></tr>
+          <tr><td>路徑最佳化</td><td>Google OR-Tools</td><td>容量、時窗、溫層可以同時設成硬約束</td></tr>
+          <tr><td>值班代理</td><td>DeepSeek V4 Flash ＋ Cloudflare Worker</td><td>金鑰存在伺服器端，不進網頁</td></tr>
+          <tr><td>圖表</td><td>手寫 SVG</td><td>零外部請求，任何網路環境都打得開</td></tr>
+        </tbody>
+      </table></div></div>
+
+      <div class="note">
+        全站數字最後計算於 ${E.built_at}，耗時 ${E.seconds} 秒。
+        重跑方式：<code>pip install -r requirements.txt</code> 後執行
+        <code>python build_static.py</code>，會重新配適所有模型並更新 <code>site/data/</code>。
+      </div>
+      ${footer()}`;
+  } catch (e) { fail(box, e); }
+})();
+</script>
+</body>
+</html>

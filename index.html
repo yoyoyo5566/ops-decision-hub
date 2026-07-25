@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>摘要｜AI 智慧營運決策中樞</title>
+<link rel="stylesheet" href="assets/exec.css">
+<link rel="stylesheet" href="assets/mechanicus.css">
+</head>
+<body>
+<div id="app"></div>
+<script src="assets/chart.js"></script>
+<script src="assets/app.js"></script>
+<script>
+mountNav('index.html');
+(async () => {
+  const box = document.getElementById('app');
+  try {
+    const [E, S, D, Cu] = await Promise.all(
+      [load('events'), load('supply'), load('delivery'), load('customers')]);
+
+    const cold = S.bottleneck.find(b => b.溫層 === '冷藏');
+    const warm = S.bottleneck.find(b => b.溫層 === '常溫');
+    const big = S.linked[0];
+    const nb = D.naive.summary, op = D.optimized.summary;
+    const firstDrop = D.stress.find(s => s.未能服務門市 > 0);
+    const risk = Cu.clusters.find(c => c.cluster_name.includes('流失高風險'));
+    const vip = Cu.clusters.find(c => c.cluster_name.includes('VIP'));
+    const atRiskMoney = Cu.top_targets.reduce((a, t) => a + t.風險金額, 0);
+    const coldV = D.vehicles.filter(v => v.temp_zone === '冷藏');
+    const addCost = Math.round(coldV[0].fixed_cost_per_day * 30 / 1000) * 1000;
+    const growHead = firstDrop ? firstDrop.需求成長.replace('+','') : '9%';
+
+    box.innerHTML = `
+      <div class="wrap"><div class="head">
+        <div>
+          <div class="kicker">本月營運決策總覽</div>
+          <h1>冷藏車隊已經滿了。下一批貨補得出來，送不出去。</h1>
+        </div>
+        <div class="figure">
+          <div class="n">${fmt(cold.剩餘容量kg)}<small> kg</small></div>
+          <div class="l">冷藏運能剩餘<br>需求再成長 ${growHead} 就有門市送不到</div>
+        </div>
+      </div>
+
+      <div class="sec">
+        <h2>三個發現 <em>資料更新於 ${E.built_at.slice(0,10)}</em></h2>
+        <div class="finds">
+          <div class="find neg">
+            <div class="cat">運能</div>
+            <div class="big">${cold.產能使用率}<small>%</small></div>
+            <div class="say">冷藏車已經滿載，常溫車閒置一半</div>
+            <div class="vs">冷藏 ${fmt(cold.今日配送需求kg)} / ${fmt(cold.車隊容量kg)} 公斤　·　
+              常溫僅 ${warm.產能使用率}%，但溫層不能混載</div>
+          </div>
+          <div class="find warn">
+            <div class="cat">庫存</div>
+            <div class="big">${big.涵蓋天數}<small> 天</small></div>
+            <div class="say">${big.商品}庫存只夠撐這麼久</div>
+            <div class="vs">下月需要 ${fmt(big.下月預測)} 件，現有 ${big.目前庫存} 件，
+              補貨要等 ${big.前置期天} 天　·　它是冷藏品</div>
+          </div>
+          <div class="find neg">
+            <div class="cat">客戶</div>
+            <div class="big">${fmt(Math.round(risk.累積消費/10000))}<small> 萬</small></div>
+            <div class="say">流失風險最高那群，人均消費最多</div>
+            <div class="vs">比 VIP 群的 ${fmt(Math.round(vip.累積消費/10000))} 萬還高　·　
+              ${risk.人數} 人，前 20 名合計曝險 ${fmt(Math.round(atRiskMoney/10000))} 萬</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="sec">
+        <h2>為什麼這三件事是同一件事</h2>
+        <div class="chain">
+          <div class="link">
+            <div class="step">01　行銷想推</div>
+            <div class="num">${big.商品}</div>
+            <div class="txt">交叉銷售分析裡最強的搭配組合之一</div>
+          </div>
+          <div class="link hot">
+            <div class="step">02　但庫存不夠</div>
+            <div class="num">缺 ${fmt(big.補貨缺口)} 件</div>
+            <div class="txt">下月需求 ${fmt(big.下月預測)}，現有 ${big.目前庫存}</div>
+          </div>
+          <div class="link hot">
+            <div class="step">03　補了也送不掉</div>
+            <div class="num">剩 ${fmt(cold.剩餘容量kg)} kg</div>
+            <div class="txt">它是冷藏品，而冷藏車已用掉 ${cold.產能使用率}%</div>
+          </div>
+          <div class="link">
+            <div class="step">04　客戶開始跑</div>
+            <div class="num">${fmt(risk.人數)} 人</div>
+            <div class="txt">高風險群人均消費最高，配送延遲是第一大客訴</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="sec">
+        <h2>要拍板的一件事</h2>
+        <div class="decide">
+          <h3>加一台冷藏車，還是砍掉這季的生鮮檔期？</h3>
+          <div class="q">現有三台車已經排到最緊。目前方案全部門市準時送達，但沒有任何餘裕。</div>
+          <div class="opts">
+            <div class="opt recommended">
+              <div class="t">加一台冷藏車 <b>建議</b></div>
+              <dl>
+                <dt>每月增加成本</dt><dd>約 NT$${fmt(addCost)}</dd>
+                <dt>可承接需求成長</dt><dd>+${Math.round(coldV[0].capacity_kg/cold.今日配送需求kg*100)}%</dd>
+                <dt>解除的限制</dt><dd>冷藏補貨不再卡運能</dd>
+                <dt>風險</dt><dd>需求沒成長就是閒置</dd>
+              </dl>
+            </div>
+            <div class="opt">
+              <div class="t">維持現狀，控制檔期</div>
+              <dl>
+                <dt>每月增加成本</dt><dd>0</dd>
+                <dt>可承接需求成長</dt><dd>+${firstDrop ? parseInt(firstDrop.需求成長) - 1 : 8}%</dd>
+                <dt>代價</dt><dd>冷藏品促銷需限量</dd>
+                <dt>風險</dt><dd>臨時追單即無車可派</dd>
+              </dl>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="sec">
+        <div class="sec-h"><h2>配送現況</h2><span><a href="delivery.html">看完整排程 →</a></span></div>
+        <div class="two">
+          <div>
+            <h3>目前方案：全部準時</h3>
+            <div class="sub">相較按地理分區的排法，省 NT$${fmt(nb.total_cost-op.total_cost,0)}、
+              少 ${fmt(nb.total_km-op.total_km,1)} 公里，而且沒有一家白跑</div>
+            <div class="scroll"><table>
+              <thead><tr><th>排法</th><th class="n">送不進時段</th>
+                <th class="n">里程</th><th class="n">成本</th></tr></thead>
+              <tbody>
+                <tr><td>按地理分區</td>
+                  <td class="n" style="color:var(--red);font-weight:700">${nb.violations} 家</td>
+                  <td class="n">${nb.total_km}</td><td class="n">${fmt(nb.total_cost,0)}</td></tr>
+                <tr><td><b>目前採用</b></td>
+                  <td class="n" style="color:var(--green);font-weight:700">0 家</td>
+                  <td class="n">${op.total_km}</td><td class="n">${fmt(op.total_cost,0)}</td></tr>
+              </tbody></table></div>
+          </div>
+          <div>
+            <h3>需求再成長多少會撐不住</h3>
+            <div class="sub">冷藏是唯一的瓶頸，加常溫車無效</div>
+            <div id="stress"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="sec">
+        <h2>本月待辦 <em>${E.summary.auto} 項系統自動處理，${E.summary.human} 項需要人決定</em></h2>
+        <div><div class="scroll"><table>
+          <thead><tr><th>事項</th><th>領域</th><th class="n">急迫</th><th>誰處理</th></tr></thead>
+          <tbody>${E.events.slice(0, 8).map(e => `<tr>
+            <td>${e.title}</td>
+            <td style="color:var(--sub)">${e.domain}</td>
+            <td class="n">${e.severity === '緊急'
+              ? `<span style="color:var(--red);font-weight:700">${e.severity}</span>`
+              : e.severity}</td>
+            <td>${e.automation_ok
+              ? '<span style="color:var(--green)">系統</span>'
+              : '<span style="color:var(--ink);font-weight:600">人工</span>'}</td>
+          </tr>`).join('')}</tbody></table></div></div>
+      </div>
+
+      <div class="foot">
+        數字由本專案的分析程式實際計算產生，非預先寫入。最後更新 ${E.built_at}。
+        資料為模擬情境，換成實際營運資料後同一套流程可直接重跑。
+      </div>
+      </div>`;
+
+    el('stress').innerHTML = hbar(D.stress.map(s => ({
+      k: `需求 ${s.需求成長}`,
+      v: s.總需求kg,
+      c: s.未能服務門市 > 0 ? '#B03A32' : '#0E6E78',
+      right: s.未能服務門市 > 0 ? `${s.未能服務門市} 家送不到` : '全部送得到',
+    })), {w:520, padL:86, padR:132, rowH:30, showVal:false});
+  } catch (e) {
+    box.innerHTML = `<div style="padding:2rem">資料載入失敗：${e.message}</div>`;
+  }
+})();
+</script>
+</body>
+</html>

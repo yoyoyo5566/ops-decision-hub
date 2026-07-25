@@ -1,0 +1,9 @@
+﻿欄位,ERP,WMS,TMS,CRM,BI
+customer_id,M,S,S,S,S
+customer_address,S,S,S,M,S
+sku_master,M,S,S,—,S
+sku_dimensions,S,M,S,—,S
+inventory_qty,S,M,—,—,S
+order_status,M,S,S,S,S
+delivery_eta,—,—,M,S,S
+invoice_total,M,—,—,S,S

@@ -1,0 +1,330 @@
+:root{--paper:#000904!important;--card:#021409!important;--ink:#aaffba!important;--sub:#5aa86f!important;--mute:#5aa86f!important;--faint:#347849!important;--line:#0c7930!important;--rule:#0c7930!important;--hair:#07491f!important;--deep:#000703!important;--navy:#052b14!important;--chill:#22ff62!important;--accent:#22ff62!important;--pos:#22ff62!important;--good:#22ff62!important;--warn:#ffe55c!important;--amber:#ffe55c!important;--alert:#ff5362!important;--red:#ff5362!important;--green:#22ff62!important;--mono:"Lucida Console","Courier New",Consolas,monospace!important;--sans:"Microsoft JhengHei","Noto Sans TC","PingFang TC",sans-serif!important}
+*{scrollbar-color:#18cf4a #000b04}html{background:#000703}html::before{content:"";position:fixed;inset:0;z-index:9996;pointer-events:none;box-shadow:inset 0 0 130px #000,inset 0 0 32px rgba(0,0,0,.96)}
+body{color:var(--ink)!important;font-family:var(--sans)!important;text-shadow:0 0 3px rgba(34,255,98,.18);background-color:#000703!important;background-image:linear-gradient(rgba(34,255,98,.032) 1px,transparent 1px),linear-gradient(90deg,rgba(34,255,98,.032) 1px,transparent 1px),radial-gradient(circle at 65% -10%,rgba(34,255,98,.14),transparent 38%),linear-gradient(145deg,#001409,#000703 66%,#001006)!important;background-size:34px 34px,34px 34px,auto,auto!important}
+body::before{content:"";position:fixed;inset:0;z-index:9997;pointer-events:none;background:repeating-linear-gradient(0deg,rgba(0,0,0,.16) 0,rgba(0,0,0,.16) 1px,transparent 1px,transparent 4px);mix-blend-mode:multiply}
+body::after{content:"NOOSPHERE UPLINK: ACTIVE // DATA-SEAL: VERIFIED // COGITATOR VII";position:fixed;right:12px;bottom:7px;z-index:9998;color:#20f65d;opacity:.48;font:9px/1 var(--mono);letter-spacing:.1em;pointer-events:none}
+.top{position:sticky!important;top:0!important;z-index:100!important;background:rgba(0,8,3,.96)!important;border:0!important;border-top:6px solid #22ff62!important;border-bottom:1px solid #19c84b!important;box-shadow:0 0 22px rgba(34,255,98,.14)!important;backdrop-filter:blur(8px)}
+.top::before{content:"";position:absolute;left:0;right:0;top:-6px;height:6px;background:repeating-linear-gradient(135deg,#20ff60 0 10px,#001208 10px 20px)}
+.top-in{max-width:1240px!important;padding:.75rem 1.3rem!important;min-height:68px}.brand{color:#22ff62!important;font-family:var(--mono)!important;font-size:.84rem!important;line-height:1.25;letter-spacing:.13em!important;text-transform:uppercase;text-shadow:0 0 10px #22ff62}
+.brand::before{content:"⚙";display:inline-grid;place-items:center;width:38px;height:38px;margin-right:11px;border:1px solid #22ff62;border-radius:50%;font-size:25px;vertical-align:middle;box-shadow:0 0 0 3px #001208,0 0 0 4px #137d33,0 0 15px rgba(34,255,98,.4);animation:mech-cog 18s linear infinite}
+.brand::after{content:" // COMMAND NEXUS";color:#408e56;font-size:.62rem}.brand span,.brand em{color:#22ff62!important}.nav a{color:#4f9c64!important;border:1px solid transparent!important;border-radius:0!important;padding:.36rem .55rem!important;font-family:var(--mono);text-transform:uppercase}.nav a::before{content:"> ";color:#22ff62;opacity:.55}.nav a:hover,.nav a.on{color:#22ff62!important;background:#052813!important;border-color:#0b7130!important;box-shadow:inset 3px 0 #22ff62,0 0 11px rgba(34,255,98,.12)}
+.wrap{max-width:1240px!important;padding-top:1.4rem!important}.where{border:1px solid #0a6e2c!important;background:#010e06;margin-top:.65rem!important}.where a{padding:.72rem 1rem!important;border:0!important;border-right:1px solid #075a25!important}.where a.on{background:#062b15!important;color:#22ff62!important;box-shadow:inset 0 -2px #22ff62}.where .s,.eyebrow,.kicker,.cat{color:#22ff62!important}
+.head{position:relative;border:1px solid #0d8133!important;padding:2.2rem!important;background:linear-gradient(110deg,rgba(6,48,22,.82),rgba(0,11,4,.72))!important;box-shadow:inset 0 0 45px rgba(34,255,98,.035),0 0 20px rgba(34,255,98,.1)!important}.head::before{content:"+++ SANCTIFIED OPERATIONAL DECISION ARRAY +++";position:absolute;top:7px;left:2.2rem;color:#22ff62;font:8px/1 var(--mono);letter-spacing:.17em}.head::after{content:"00110101 01001110 01001001 // AUTHORITY: MAGOS LOGISTICA";position:absolute;left:2.2rem;right:2rem;bottom:7px;color:#276d3b;font:8px/1 var(--mono);letter-spacing:.1em}
+.head h1,h1{color:#c5ffcf!important;border-left:3px solid #22ff62!important;padding-left:1rem!important;font-family:var(--mono)!important;letter-spacing:.035em!important;text-shadow:0 0 6px #22ff62,0 0 22px rgba(34,255,98,.26)}.head h1::before,h1::before{content:"[ "}.head h1::after,h1::after{content:" ]"}.head .figure{border-color:#0c7930!important}.head .figure .n{color:#22ff62!important;text-shadow:0 0 12px rgba(34,255,98,.5)}
+.sec{position:relative}.sec>h2,h2{color:#22ff62!important;border-color:#0c7930!important;font-family:var(--mono)!important;text-transform:uppercase;letter-spacing:.11em!important}.sec>h2::before,h2::before{content:"◈ ";text-shadow:0 0 8px #22ff62}.sec>h2 em{color:#357b4a!important}
+.panel,.m,.ev,.ctrl,.next,.decide,.opt,.link,.find,.agent-box,.result-box{border-radius:0!important;border-color:#0b7430!important;background:linear-gradient(145deg,rgba(34,255,98,.025),transparent 42%),rgba(1,18,8,.94)!important;color:#aaffba!important;box-shadow:inset 0 0 25px rgba(34,255,98,.025),0 0 14px rgba(34,255,98,.07)!important}.panel,.m,.ev,.opt,.link{position:relative}.panel::before,.m::before,.opt::before,.link::before{content:"";position:absolute;left:-1px;top:-1px;width:9px;height:9px;border-left:2px solid #22ff62;border-top:2px solid #22ff62}
+.m{border-top:2px solid #22ff62!important;min-height:105px}.m .v,.big,.num,.rec .it .v{color:#c8ffd3!important;font-family:var(--mono)!important;text-shadow:0 0 9px rgba(34,255,98,.4)}.m::after{content:"VERIFIED";position:absolute;right:6px;bottom:4px;color:#1e6034;font:7px/1 var(--mono);letter-spacing:.12em}.find{border-color:#0a5b27!important;padding:1.2rem!important;background:rgba(1,16,7,.82)}.rec,.finds,.chain{border-color:#0a6e2c!important}.link.hot,.find.neg{border-color:#ff5362!important}.find.warn{border-color:#ffe55c!important}
+table{background:rgba(0,12,5,.78)!important;border:1px solid #095f28}th{background:#052813!important;color:#22ff62!important;border-color:#0c7930!important;text-transform:uppercase}th::before{content:"▸ ";color:#22ff62}td{color:#91dda3!important;border-color:#073f1c!important}tbody tr:hover{background:#063018!important}.cellbar{background:#001208!important}.cellbar i{background:#22ff62!important;box-shadow:0 0 7px #22ff62}.tag,.pill{border-radius:0!important;background:#062713!important;color:#22ff62!important;border:1px solid #0d8836!important}
+input,select,textarea,.seg,.seg button{border-radius:0!important;background:#011107!important;color:#aaffba!important;border-color:#0c7930!important;font-family:var(--sans)!important;caret-color:#22ff62}input[type=range]{accent-color:#22ff62!important}button.act,.seg button.on{border-radius:0!important;border:1px solid #22ff62!important;background:#062d16!important;color:#22ff62!important;font-family:var(--sans)!important;text-transform:uppercase;box-shadow:inset 0 0 12px rgba(34,255,98,.08)}button.act::before{content:"[ "}button.act::after{content:" ]"}button.act:hover{background:#22ff62!important;color:#001006!important}.foot,.note,details.appendix,.tools{border-color:#0a6028!important;color:#4d9661!important}a{color:#22ff62!important}
+svg{isolation:isolate}
+svg text,svg tspan{font-family:"Microsoft JhengHei","Noto Sans TC","PingFang TC",sans-serif!important;text-shadow:none!important;letter-spacing:0!important}
+.chart,.chart-wrap,.viz,.map,.network{font-family:var(--sans)!important;text-shadow:none}
+@keyframes mech-cog{to{transform:rotate(360deg)}}@media(max-width:700px){body::after{display:none}.brand::after{display:none}.head{padding:2rem 1rem!important}.head::before,.head::after{left:1rem}}@media(prefers-reduced-motion:reduce){.brand::before{animation:none}}
+
+/* Legibility pass: preserve the CRT character while keeping small copy readable. */
+:root{
+  --ink:#c8ffd3!important;
+  --sub:#8bd69b!important;
+  --mute:#78c88b!important;
+  --faint:#67b879!important;
+}
+html::before{box-shadow:inset 0 0 110px rgba(0,0,0,.68),inset 0 0 24px rgba(0,0,0,.52)}
+body{ text-shadow:0 0 2px rgba(34,255,98,.12)}
+body::before{background:repeating-linear-gradient(0deg,rgba(0,0,0,.08) 0,rgba(0,0,0,.08) 1px,transparent 1px,transparent 4px)}
+body::after{opacity:.74}
+.brand::after{color:#76c989}
+.nav a::before{opacity:.82}
+.head::after{color:#6fc781}
+.sec>h2 em{color:#79c88a!important}
+.m::after{color:#5db36f}
+.foot,.note,details.appendix,.tools{color:#73c587!important}
+
+/* Original light-theme copy must not remain dark on the terminal surface. */
+.lede,.ev ul,.tr pre,.said span{color:#a8e9b5!important}
+
+/* Page-local light cards otherwise inherit luminous text and lose contrast. */
+.tr,.said,.chain b,.alertfile{
+  background:#011107!important;
+  color:#c8ffd3!important;
+  border-color:#0b7430!important;
+}
+.tr.deny{background:#26090e!important}
+.tr.say{background:#03170b!important}
+.status.on{background:#07351a!important;color:#64ff8c!important}
+.status.off{background:#101b14!important;color:#9bd6a8!important}
+tbody tr[style*="background:#FBEFEE"]{background:#26090e!important}
+
+/* Dynamic semantic colors were authored for a pale background. */
+[style*="color:#B23A34"]{color:#ff6b78!important}
+[style*="color:#2E7D5B"]{color:#4dff7b!important}
+[style*="color:#0F6E78"]{color:#69eee4!important}
+[style*="color:#D9772F"]{color:#ffd064!important}
+[style*="color:#3D5A98"]{color:#9ab8ff!important}
+[style*="color:#1B3A57"]{color:#a8d0ff!important}
+
+input::placeholder,textarea::placeholder{color:#70b881!important;opacity:1}
+
+/* Transparent charts sit on dark panels; light-surface diagrams remain untouched. */
+svg[data-surface="dark"] text[fill="#222E36"],
+svg[data-surface="dark"] tspan[fill="#222E36"]{fill:#c8ffd3!important}
+svg[data-surface="dark"] text[fill="#6B7A83"],
+svg[data-surface="dark"] tspan[fill="#6B7A83"]{fill:#8bd69b!important}
+svg[data-surface="dark"] [stroke="#EDF0EF"]{stroke:#0a411d!important}
+svg[data-surface="dark"] [stroke="#D8DEDC"]{stroke:#16843a!important}
+
+/* ═══ v3 修正：空白格、決策清單對齊、地圖底圖 ═══ */
+
+/* 決策盒 dl：左右欄對齊，消除大面積空白 */
+.opt dl{display:grid!important;grid-template-columns:auto 1fr!important;
+  gap:.5rem 1rem!important;align-content:start!important}
+.opt dt{color:#8bd69b!important;font-size:.86rem!important}
+.opt dd{font-family:var(--mono)!important;text-align:right!important;
+  color:#c8ffd3!important;margin:0!important}
+.opt .t b{background:#22ff62!important;color:#001006!important;border-radius:0!important}
+
+/* 行動列 act-row：四欄等寬，數字置頂不留空 */
+.act-row{display:grid!important;grid-template-columns:repeat(4,1fr)!important;
+  gap:1.1rem!important;align-items:start!important}
+.act-row div{min-height:0!important}
+.act-row div span{color:#8bd69b!important;margin-bottom:.25rem!important}
+.act-row div b{font-family:var(--mono)!important;color:#c8ffd3!important;
+  text-shadow:0 0 8px rgba(34,255,98,.35)}
+.act{min-height:0!important}
+.act h3{color:#22ff62!important;font-family:var(--mono)!important}
+
+/* verdict 結論條：左右對齊，右側數字不孤立 */
+.verdict{align-items:center!important}
+.verdict .n{color:#22ff62!important;font-family:var(--mono)!important;
+  text-shadow:0 0 12px rgba(34,255,98,.5)}
+.verdict .nl{color:#8bd69b!important}
+
+/* find 卡片：內距一致，big 數字不被撐開 */
+.find .big{font-family:var(--mono)!important;line-height:1!important}
+.find .say{color:#c8ffd3!important}.find .vs{color:#8bd69b!important}
+.find .bar{background:#001208!important}.find .bar i{box-shadow:0 0 6px currentColor}
+
+/* 因果鏈 link：四格高度一致 */
+.chain{align-items:stretch!important}
+.link .num{font-family:var(--mono)!important}.link .txt{color:#8bd69b!important}
+
+/* opts / grid2 在窄容器不塌陷 */
+.opts{align-items:stretch!important}
+.opt{display:flex!important;flex-direction:column!important}
+
+/* 路線地圖：同一套 CRT 終端視覺，並保留街道辨識度 */
+.map-terminal,.leaflet-container{
+  min-height:460px;
+  background:#001208!important;
+  border:1px solid #0c7930!important;
+  border-radius:0!important;
+  box-shadow:inset 0 0 34px rgba(0,0,0,.72),0 0 14px rgba(34,255,98,.12)!important;
+}
+.map-terminal::before,.map-terminal::after{
+  content:"";position:absolute;inset:0;pointer-events:none;z-index:650
+}
+.map-terminal::before{
+  background:repeating-linear-gradient(0deg,rgba(0,0,0,.035) 0,
+    rgba(0,0,0,.035) 1px,transparent 1px,transparent 4px)
+}
+.map-terminal::after{
+  box-shadow:inset 0 0 30px rgba(0,0,0,.26);
+  background:linear-gradient(90deg,rgba(34,255,98,.012) 1px,transparent 1px),
+    linear-gradient(rgba(34,255,98,.012) 1px,transparent 1px);
+  background-size:32px 32px
+}
+.leaflet-tile-pane{
+  filter:grayscale(.45) sepia(.58) hue-rotate(72deg) saturate(1.55)
+    brightness(1.28) contrast(.96)!important;
+  opacity:1
+}
+.leaflet-tile{filter:none!important}
+.leaflet-overlay-pane svg{filter:drop-shadow(0 0 4px rgba(34,255,98,.28))}
+.route-depot-marker{
+  width:22px;height:22px;background:#052b14;border:2px solid #22ff62;
+  box-shadow:0 0 0 2px #001006,0 0 13px rgba(34,255,98,.85)
+}
+.route-stop-marker{
+  width:24px;height:24px;border-radius:50%;
+  background:var(--route-color);border:2px solid #c8ffd3;color:#001006;
+  font:700 11px/20px var(--mono);text-align:center;text-shadow:none;
+  box-shadow:0 0 0 2px #001006,0 0 11px var(--route-color)
+}
+.leaflet-tooltip.terminal-map-tip,.leaflet-tooltip{
+  background:#001208!important;color:#c8ffd3!important;border:1px solid #22ff62!important;
+  border-radius:0!important;box-shadow:0 0 12px rgba(34,255,98,.22)!important;
+  font:12px/1.45 var(--mono)!important
+}
+.leaflet-tooltip-top::before{border-top-color:#22ff62!important}
+.leaflet-tooltip-bottom::before{border-bottom-color:#22ff62!important}
+.leaflet-tooltip-left::before{border-left-color:#22ff62!important}
+.leaflet-tooltip-right::before{border-right-color:#22ff62!important}
+.leaflet-control-attribution{
+  background:rgba(0,8,3,.88)!important;color:#8bd69b!important;
+  border-top:1px solid #0c7930;font:9px/1.35 var(--mono)!important
+}
+.leaflet-control-attribution a{color:#22ff62!important}
+.leaflet-bar{
+  border:1px solid #0c7930!important;border-radius:0!important;
+  box-shadow:0 0 10px rgba(34,255,98,.15)!important
+}
+.leaflet-bar a{
+  background:#021409!important;color:#22ff62!important;border-color:#0c7930!important;
+  border-radius:0!important;font-family:var(--mono)!important;text-shadow:none!important
+}
+.leaflet-bar a:hover{background:#063018!important;color:#c8ffd3!important}
+#mapLeg{
+  margin-top:.8rem!important;padding-top:.7rem!important;
+  border-top:1px solid #0a6028;color:#8bd69b!important
+}
+
+/* 全站主導覽：單一名稱、固定格線與一致間距 */
+.top-in{
+  gap:1rem!important;
+  flex-wrap:nowrap!important
+}
+.brand{
+  flex:0 0 auto;
+  white-space:nowrap
+}
+.nav{
+  display:grid!important;
+  grid-template-columns:repeat(8,minmax(4.25rem,1fr));
+  gap:.3rem!important;
+  align-items:stretch!important;
+  margin-left:auto!important
+}
+.nav a{
+  display:flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  min-height:2.15rem;
+  padding:.4rem .62rem!important;
+  line-height:1.25!important;
+  text-align:center!important
+}
+@media(max-width:1080px){
+  .top-in{flex-wrap:wrap!important}
+  .nav{
+    width:100%;
+    margin-left:0!important
+  }
+}
+@media(max-width:700px){
+  .nav{grid-template-columns:repeat(4,minmax(0,1fr))}
+  .nav a{padding:.38rem .35rem!important}
+}
+
+/* 決策比較：避免 .rec 與摘要元件撞名造成大片空白 */
+.decide{
+  padding:1.1rem 1.2rem!important
+}
+.decide h3{
+  margin:.1rem 0 .25rem!important;
+  color:#c8ffd3!important
+}
+.decide .q{
+  color:#8bd69b!important;
+  margin-bottom:.9rem!important
+}
+.opts{
+  display:grid!important;
+  grid-template-columns:repeat(2,minmax(0,1fr))!important;
+  gap:.8rem!important;
+  align-items:stretch!important
+}
+.opt{
+  display:block!important;
+  min-height:0!important;
+  margin:0!important;
+  padding:.85rem .95rem!important;
+  align-self:stretch!important
+}
+.opt.recommended{
+  border-color:#22ff62!important;
+  box-shadow:inset 3px 0 #22ff62,0 0 12px rgba(34,255,98,.1)!important
+}
+.opt .t{
+  display:flex!important;
+  align-items:center!important;
+  justify-content:space-between!important;
+  gap:.75rem!important;
+  margin:0 0 .65rem!important;
+  color:#c8ffd3!important;
+  font-weight:700!important
+}
+.opt dl{
+  margin:0!important;
+  gap:.35rem .8rem!important
+}
+.opt dt,.opt dd{
+  line-height:1.45!important
+}
+@media(max-width:760px){
+  .opts{grid-template-columns:1fr!important}
+}
+
+/* 客戶建議摘要：獨立元件，避免舊 .rec 規則撐高內容 */
+.recommendation-strip{
+  display:grid!important;
+  grid-template-columns:minmax(220px,1.6fr) repeat(4,minmax(100px,1fr))!important;
+  gap:1rem!important;
+  align-items:center!important;
+  min-height:0!important;
+  height:auto!important;
+  padding:.9rem 1rem!important;
+  margin:0 0 1.6rem!important;
+  border:1px solid #0a6e2c!important;
+  background:rgba(1,18,8,.94)!important;
+  box-shadow:inset 0 0 22px rgba(34,255,98,.025)!important
+}
+.recommendation-strip .lead{
+  align-self:center!important;
+  color:#c8ffd3!important;
+  font-size:1.02rem!important;
+  font-weight:700!important;
+  line-height:1.4!important
+}
+.recommendation-strip .lead span{
+  display:block;
+  margin-bottom:.2rem;
+  color:#22ff62!important;
+  font-size:.68rem;
+  letter-spacing:.18em
+}
+.recommendation-strip .it{
+  align-self:center!important
+}
+.recommendation-strip .it .k{
+  margin-bottom:.2rem;
+  color:#8bd69b!important;
+  font-size:.7rem
+}
+.recommendation-strip .it .v{
+  color:#c8ffd3!important;
+  font:600 1.55rem/1 var(--mono)!important;
+  text-shadow:0 0 8px rgba(34,255,98,.32)
+}
+.recommendation-strip .it .v.pos{color:#22ff62!important}
+@media(max-width:900px){
+  .recommendation-strip{
+    grid-template-columns:repeat(2,minmax(0,1fr))!important
+  }
+  .recommendation-strip .lead{grid-column:1/-1}
+}
+
+/* 三個 API 控制按鈕使用同一套警示樣式 */
+.control-alert{
+  background:#8a4b45!important;
+  border-color:#ff7a86!important;
+  color:#fff4f5!important;
+  box-shadow:inset 0 0 12px rgba(255,83,98,.12)!important
+}
+.control-alert:hover{
+  background:#a44f4a!important;
+  border-color:#ff9aa3!important;
+  color:#fff!important
+}
+
+/* 地圖可讀性優先：明亮街道底圖，不套濾鏡或內層遮罩 */
+.map-terminal::before,.map-terminal::after{display:none!important}
+.leaflet-tile-pane{filter:none!important;opacity:1!important}

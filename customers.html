@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>客戶｜AI 智慧營運決策中樞</title>
+<link rel="stylesheet" href="assets/exec.css">
+<link rel="stylesheet" href="assets/mechanicus.css">
+</head>
+<body>
+<div id="app"></div>
+<script src="assets/chart.js"></script>
+<script src="assets/app.js"></script>
+<script>
+mountNav('customers.html');
+(async () => {
+  const box = document.getElementById('app');
+  try {
+    const D = await load('customers');
+    const sw = D.sweep, nv = D.naive;
+    const half = sw.reduce((a,b) => Math.abs(b.threshold-.5) < Math.abs(a.threshold-.5) ? b : a);
+    const best = sw.reduce((a,b) => b.net_value > a.net_value ? b : a);
+    const cl = D.clusters.slice().sort((a,b) => b.累積消費 - a.累積消費);
+    const vip = D.clusters.find(c => c.cluster_name.includes('VIP'));
+    const risk = D.clusters.find(c => c.cluster_name.includes('流失高風險'));
+    const sleep = D.clusters.find(c => c.cluster_name.includes('沉睡'));
+    const money = D.top_targets.reduce((a,t) => a + t.風險金額, 0);
+    const withCx = D.top_targets.filter(t => t.ComplaintCnt > 0).length;
+    const maxM = Math.max(...D.top_targets.map(t => t.風險金額));
+
+    box.innerHTML = `<div class="wrap">
+      <div class="head">
+        <div>
+          <div class="kicker">客戶 · 流失風險</div>
+          <h1>最會花錢的一群，正在走。</h1>
+        </div>
+        <div class="figure">
+          <div class="n">${fmt(Math.round(money/10000))}<small> 萬</small></div>
+          <div class="l">最急的 20 位客戶<br>合計可能損失金額</div>
+        </div>
+      </div>
+
+      <div class="recommendation-strip">
+        <div class="lead"><span>建議</span>這個月打 ${best.TP+best.FP} 通電話</div>
+        <div class="it"><div class="k">優先聯繫</div><div class="v">${best.TP+best.FP}</div></div>
+        <div class="it"><div class="k">預期留住</div><div class="v pos">${best.TP}</div></div>
+        <div class="it"><div class="k">白打</div><div class="v">${best.FP}</div></div>
+        <div class="it"><div class="k">淨效益</div>
+          <div class="v pos">${fmt(Math.round(best.net_value/10000))}<span style="font-size:.9rem"> 萬</span></div></div>
+      </div>
+
+      <div class="sec">
+        <h2>優先聯繫名單 <em>依 累積消費 × 流失機率 排序</em></h2>
+        <div class="scroll"><table>
+          <thead><tr><th>客戶</th><th class="n">多久沒買</th><th class="n">買過</th>
+            <th class="n">累積消費</th><th class="n">客訴</th><th>客群</th>
+            <th class="n">流失機率</th><th class="n" style="width:22%">可能損失</th></tr></thead>
+          <tbody>${D.top_targets.map(t => `<tr>
+            <td><b>${t.customer_id}</b></td>
+            <td class="n">${fmt(t.Recency)}</td>
+            <td class="n">${fmt(t.Frequency)}</td>
+            <td class="n">${fmt(t.Monetary)}</td>
+            <td class="n"${t.ComplaintCnt>0?' style="color:var(--accent);font-weight:700"':''}>
+              ${fmt(t.ComplaintCnt)}</td>
+            <td style="color:var(--sub)">${t.cluster_name}</td>
+            <td class="n">${(t.churn*100).toFixed(0)}%</td>
+            <td class="n"><b>${fmt(t.風險金額)}</b>
+              <span class="cellbar"><i style="width:${t.風險金額/maxM*100}%"></i></span></td>
+          </tr>`).join('')}</tbody>
+        </table></div>
+      </div>
+
+      <div class="sec">
+        <h2>為什麼是這群人</h2>
+        <div class="finds">
+          <div class="find neg">
+            <div class="cat">人均消費</div>
+            <div class="big">${fmt(Math.round(risk.累積消費/1000))}<small>K</small></div>
+            <div class="say">高風險群比 VIP 群更會花錢</div>
+            <div class="vs">VIP 群 ${fmt(Math.round(vip.累積消費/1000))}K　·　
+              高出 ${(risk.累積消費/vip.累積消費).toFixed(1)} 倍</div>
+          </div>
+          <div class="find warn">
+            <div class="cat">停買天數</div>
+            <div class="big">${fmt(risk.最近購買)}<small> 天</small></div>
+            <div class="say">買得少，但每次金額大</div>
+            <div class="vs">平均只買 ${fmt(risk.購買次數,1)} 次　·　
+              VIP 群買 ${fmt(vip.購買次數,1)} 次卻只花一半</div>
+          </div>
+          <div class="find neg">
+            <div class="cat">客訴</div>
+            <div class="big">${withCx}<small>/20</small></div>
+            <div class="say">最急的 20 位裡抱怨過的人數</div>
+            <div class="vs">客訴次數是第二強的流失訊號　·　
+              <a href="voice.html">第一大痛點是配送延遲 →</a></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="sec">
+        <h2>錢在哪一群 <em>共 ${fmt(D.n)} 位客戶</em></h2>
+        <div class="two">
+          <div class="scroll"><table>
+            <thead><tr><th>客群</th><th class="n">人數</th><th class="n">人均消費</th>
+              <th class="n">多久沒買</th><th class="n">買過</th></tr></thead>
+            <tbody>${cl.map(c => {
+              const hot = c.cluster_name.includes('流失高風險');
+              return `<tr>
+                <td><b${hot?' style="color:var(--accent)"':''}>${c.cluster_name}</b></td>
+                <td class="n">${c.人數}</td>
+                <td class="n"${hot?' style="color:var(--accent);font-weight:700"':''}>
+                  ${fmt(c.累積消費)}</td>
+                <td class="n">${fmt(c.最近購買)}</td>
+                <td class="n">${fmt(c.購買次數,1)}</td></tr>`;
+            }).join('')}</tbody></table></div>
+          <div><div id="clBar"></div></div>
+        </div>
+      </div>
+
+      <div class="sec">
+        <h2>要打幾通電話 <em>名單放寬就多救人，也多白工</em></h2>
+        <div class="tools">
+          <label>名單鬆緊</label>
+          <input type="range" id="th" min="0" max="${sw.length-1}"
+            value="${sw.findIndex(s=>s.threshold===best.threshold)}">
+          <span id="thv" style="font-size:.8rem;color:var(--sub)"></span>
+        </div>
+        <div class="two">
+          <div class="rec" style="border-bottom:0;padding:0;margin:0;
+            grid-template-columns:repeat(4,1fr)" id="thStats"></div>
+          <div id="netChart"></div>
+        </div>
+        <div class="note">以留住一位客戶一年約值 NT$30,000、白打一通約 NT$200 換算。</div>
+      </div>
+
+      <details class="appendix">
+        <summary>分析方法與驗證</summary>
+        <div class="appendix-body">
+          <p><b>模型</b>　單棵決策樹，深度 4。選單棵樹是因為名單要交給客戶經理打電話，
+          「為什麼是這個人」必須答得出來。深度加到 12 時模型在看過的資料上幾乎全對，
+          在沒看過的資料上反而變差，故不用更深。</p>
+          <p><b>驗證</b>　訓練 70% / 驗證 15% / 測試 15%，分層抽樣。下列數字全部來自
+          模型沒看過的測試資料（${half.TN+half.FP+half.FN+half.TP} 位，實際流失
+          ${half.TP+half.FN} 位，樣本偏小會有波動）。</p>
+          <p><b>為何不看準確率</b>　流失率僅 ${(D.churn_rate*100).toFixed(1)}%，
+          「永遠猜留客」的對照模型準確率就有 ${(nv.accuracy*100).toFixed(1)}%，卻一位都沒抓到。
+          實際模型 ${(half.accuracy*100).toFixed(1)}%，僅高
+          ${((half.accuracy-nv.accuracy)*100).toFixed(1)} 個百分點，但攔下 ${half.TP} 位。</p>
+          <div class="two" style="margin-top:1rem">
+            <div id="cm1"></div>
+            <div><div id="imp"></div></div>
+          </div>
+          <p style="margin-top:.9rem"><b>可重現</b>　執行
+          <code>pipeline/build_static.py</code> 重新配適模型並更新本頁全部數字。</p>
+        </div>
+      </details>
+
+      <div class="foot">數字由分析程式實際計算，非預先寫入。資料為模擬情境。</div>
+    </div>`;
+
+    el('clBar').innerHTML = hbar(cl.slice().reverse().map(c => ({
+      k: c.cluster_name, v: c.累積消費,
+      c: c.cluster_name.includes('流失高風險') ? '#B5453A' : '#146E76',
+      right: `${c.人數} 人`,
+    })), {w:420, padL:104, padR:82, rowH:36, showVal:true});
+
+    el('cm1').innerHTML = confusion(half, {w:400});
+    el('imp').innerHTML = hbar(D.importance.map(i => ({
+      k: ({'Recency':'最近購買天數','Frequency':'購買次數','Monetary':'累積消費',
+           'AvgOrder':'平均客單','ComplaintCnt':'客訴次數','Tenure':'往來天數'})[i.feature],
+      v: i.importance, c: i.importance > 0 ? '#146E76' : '#DFDCD4',
+    })), {w:400, padL:104, dec:3, rowH:24});
+    el('netChart').innerHTML = lineChart([
+      {pts: sw.map(s => ({d:s.threshold.toFixed(2), y:s.net_value})), c:'#1F6B4E'},
+    ], {labels: sw.map(s => s.threshold.toFixed(2)), w:440, h:210, y0:0});
+
+    const th = el('th');
+    const draw = () => {
+      const s = sw[+th.value];
+      el('thv').textContent = (s.TP+s.FP) >= (best.TP+best.FP) ? '較寬鬆' : '較嚴格';
+      el('thStats').innerHTML = `
+        <div class="it"><div class="k">要打的電話</div><div class="v">${s.TP+s.FP}</div></div>
+        <div class="it"><div class="k">預期留住</div><div class="v pos">${s.TP}</div></div>
+        <div class="it"><div class="k">白打</div><div class="v">${s.FP}</div></div>
+        <div class="it"><div class="k">淨效益</div><div class="v${s.net_value>=best.net_value?' pos':''}">
+          ${fmt(Math.round(s.net_value/10000))}<span style="font-size:.9rem"> 萬</span></div></div>`;
+    };
+    th.addEventListener('input', draw); draw();
+  } catch (e) {
+    box.innerHTML = `<div style="padding:2rem">資料載入失敗：${e.message}</div>`;
+  }
+})();
+</script>
+</body>
+</html>

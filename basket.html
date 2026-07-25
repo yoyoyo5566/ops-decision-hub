@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>商品｜AI 智慧營運決策中樞</title>
+<link rel="stylesheet" href="assets/app.css">
+<link rel="stylesheet" href="assets/mechanicus.css">
+</head>
+<body>
+<div class="wrap" id="app">載入中…</div>
+<script src="assets/chart.js"></script>
+<script src="assets/app.js"></script>
+<script>
+mountNav('basket.html');
+(async () => {
+  const box = document.getElementById('app');
+  try {
+    const D = await load('basket');
+    const R = D.rules, T = D.trap, st = D.stats, cv = D.coverage;
+    const top = R[0];
+
+    box.innerHTML = `
+      <div class="eyebrow">顧客經營線・第二站</div>
+      <h1 class="warn">信賴度 ${(T.max_conf*100).toFixed(1)}% 的那條規則，其實等於沒說。</h1>
+      <p class="lede">
+        從 ${fmt(st.orders)} 張訂單挖出 ${st.rules} 條規則。其中以「${T.item}」為結果的那幾條，
+        信賴度看起來還行——但${T.item}本來就出現在 ${(T.base_rate*100).toFixed(1)}% 的訂單裡。
+        買了任何東西的人本來就會拿${T.item}。這種規則推出去只會浪費檔期。
+      </p>
+
+      <div class="metrics">
+        <div class="m info"><div class="k">訂單數</div><div class="v">${fmt(st.orders)}</div>
+          <div class="d">平均每張 ${st.avg_basket} 項</div></div>
+        <div class="m good"><div class="k">有效規則</div><div class="v">${st.rules}</div>
+          <div class="d">支持度 ≥ 2%・提升度 > 1.05</div></div>
+        <div class="m good"><div class="k">推薦覆蓋率</div><div class="v">${cv.pct}%</div>
+          <div class="d">${fmt(cv.covered)} / ${fmt(cv.customers)} 位顧客</div></div>
+        <div class="m alert"><div class="k">無購買紀錄</div>
+          <div class="v">${fmt(cv.customers - cv.with_history)}</div>
+          <div class="d">推薦引擎對這群人無效</div></div>
+      </div>
+
+      <h2>${T.item}陷阱：拆給你看</h2>
+      <p class="cap">信賴度回答「看到前項之後，有多少比例也買了後項」。
+        提升度回答「這比隨機猜好多少倍」。提升度貼近 1，就代表這條規則什麼也沒告訴你。</p>
+      <div class="panel"><div class="scroll"><table>
+        <thead><tr><th>前項</th><th>後項</th><th class="n">信賴度</th>
+          <th class="n">提升度</th><th class="n">訂單數</th><th>判讀</th></tr></thead>
+        <tbody>${T.rules.map(r => `<tr>
+          <td>${r.前項}</td><td>${r.後項}</td>
+          <td class="n">${(r.confidence*100).toFixed(1)}%</td>
+          <td class="n" style="color:${C.alert};font-weight:700">${r.lift.toFixed(2)}</td>
+          <td class="n">${r.n_orders}</td>
+          <td style="font-size:.82rem;color:var(--mute)">比隨機好 ${((r.lift-1)*100).toFixed(0)}%，
+            幾乎等於沒差</td></tr>`).join('')}</tbody>
+      </table></div>
+      <p class="cap">
+        ${T.item}的整體出現率是 ${(T.base_rate*100).toFixed(1)}%。
+        上面最高的信賴度 ${(T.max_conf*100).toFixed(1)}%，只比它高一點點，
+        所以提升度全部落在 ${T.min_lift.toFixed(2)} 到 ${T.max_lift.toFixed(2)} 之間。
+        <b>我把這幾條全部丟掉了。</b>
+      </p></div>
+
+      <h2>真正值得推的長這樣</h2>
+      <p class="cap">提升度前 15 條。灰色虛線是 1.0——低於它代表兩樣東西反而互斥。</p>
+      <div class="panel"><div id="topRules"></div></div>
+
+      <h2>自己調門檻篩篩看</h2>
+      <p class="cap">拉高提升度門檻，剩下的規則會越來越少但越來越硬。
+        規則數量不是成果，能拿去用的規則才是。</p>
+      <div class="ctrl">
+        <label>最低提升度</label>
+        <input type="range" id="lift" min="100" max="300" step="5" value="130">
+        <output id="liftv"></output>
+        <label style="margin-left:1rem">最低支持度</label>
+        <input type="range" id="sup" min="20" max="80" step="2" value="20">
+        <output id="supv"></output>
+        <span class="pill" id="cnt"></span>
+      </div>
+      <div class="panel"><div class="scroll"><table id="tbl">
+        <thead><tr><th>前項</th><th>後項</th><th class="n">支持度</th>
+          <th class="n">信賴度</th><th class="n">提升度</th><th class="n">訂單數</th>
+          <th>對應動作</th></tr></thead><tbody></tbody></table></div></div>
+
+      <h2>提升度落在哪一段，對應不同做法</h2>
+      <div class="panel"><div class="scroll"><table>
+        <thead><tr><th>提升度</th><th>代表什麼</th><th>該怎麼用</th><th class="n">規則數</th></tr></thead>
+        <tbody>
+          <tr><td class="n">&gt; 2.0</td><td>強相關</td><td>做成套組配套販售</td>
+            <td class="n">${D.bands.配套販售}</td></tr>
+          <tr><td class="n">1.3 – 2.0</td><td>中度相關</td><td>貨架擺一起</td>
+            <td class="n">${D.bands.跨類擺放}</td></tr>
+          <tr><td class="n">1.1 – 1.3</td><td>弱相關</td><td>結帳時提示加購</td>
+            <td class="n">${D.bands.結帳加購}</td></tr>
+          <tr><td class="n">&lt; 1.1</td><td>接近無關</td><td>不要用</td>
+            <td class="n">${D.bands.接近無效}</td></tr>
+        </tbody>
+      </table></div>
+      <p class="cap">
+        1.3 到 2.0 這一段是 <b>0 條</b>——這批資料的規則呈現斷層，不是中間值被我濾掉了。
+        照實列出來，因為「這一段沒有東西」本身也是結論。
+      </p></div>
+
+      <div class="note">
+        演算法：Apriori，最小支持度 2%、最小信賴度 20%、最小提升度 1.05，項目集長度上限 3。
+        資料為 ${fmt(st.orders)} 張訂單、${st.items} 個品項。
+        覆蓋率是逐位顧客檢查「已購組合是否至少命中一條規則且能產生新品項」算出來的，
+        沒有做樂觀估計——${fmt(cv.customers - cv.with_history)} 位沒有購買紀錄的顧客直接計為未覆蓋。
+        關聯不等於因果：資料只說這兩樣常一起出現，沒說誰導致誰。
+      </div>
+      ${nextLink('voice.html','在氣什麼',
+        '推薦能提高客單，但留不住已經在生氣的人——下一頁是他們實際說了什麼')}
+      ${footer()}`;
+
+    el('topRules').innerHTML = hbar(R.slice(0, 15).reverse().map(r => ({
+      k: `${r.前項} → ${r.後項}`,
+      v: r.lift,
+      c: r.lift > 2 ? C.chill : (r.lift > 1.3 ? C.amber : C.mute),
+      right: `${(r.confidence*100).toFixed(0)}% 的訂單成立・${r.n_orders} 張`,
+    })), {w:700, padL:190, padR:160, dec:2, rowH:25});
+
+    const band = l => l > 2 ? '配套販售' : (l >= 1.3 ? '貨架擺一起' :
+      (l >= 1.1 ? '結帳加購' : '不建議使用'));
+    const tb = document.querySelector('#tbl tbody');
+    const redraw = () => {
+      const L = +el('lift').value / 100, S = +el('sup').value / 1000;
+      el('liftv').textContent = L.toFixed(2);
+      el('supv').textContent = (S*100).toFixed(1) + '%';
+      const f = R.filter(r => r.lift >= L && r.support >= S);
+      el('cnt').textContent = `符合 ${f.length} 條，占全部 ${st.rules} 條的 ${(f.length/st.rules*100).toFixed(0)}%`;
+      tb.innerHTML = f.slice(0, 40).map(r => `<tr>
+        <td>${r.前項}</td><td>${r.後項}</td>
+        <td class="n">${(r.support*100).toFixed(1)}%</td>
+        <td class="n">${(r.confidence*100).toFixed(1)}%</td>
+        <td class="n"><b>${r.lift.toFixed(2)}</b></td>
+        <td class="n">${r.n_orders}</td><td>${band(r.lift)}</td></tr>`).join('')
+        || `<tr><td colspan="7" style="color:var(--mute)">門檻拉太高，沒有規則符合。</td></tr>`;
+    };
+    el('lift').addEventListener('input', redraw);
+    el('sup').addEventListener('input', redraw);
+    redraw();
+  } catch (e) { fail(box, e); }
+})();
+</script>
+</body>
+</html>

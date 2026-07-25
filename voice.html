@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>客訴｜AI 智慧營運決策中樞</title>
+<link rel="stylesheet" href="assets/app.css">
+<link rel="stylesheet" href="assets/mechanicus.css">
+</head>
+<body>
+<div class="wrap" id="app">載入中…</div>
+<script src="assets/chart.js"></script>
+<script src="assets/app.js"></script>
+<script>
+mountNav('voice.html');
+(async () => {
+  const box = document.getElementById('app');
+  try {
+    const D = await load('voice');
+    const P = D.pain.slice().sort((a,b) => b.嚴重度總分 - a.嚴重度總分);
+    const worst = D.pain.slice().sort((a,b) => b.負面率 - a.負面率)[0];
+    const calm = D.pain.slice().sort((a,b) => a.負面率 - b.負面率)[0];
+    const PC = {'配送延遲':C.alert,'貨損':C.amber,'客服回應':C.chill,'包裝環保':C.good};
+    const months = [...new Set(D.trend.map(t => t.month))].sort();
+    const cats = [...new Set(D.trend.map(t => t.pain_category))];
+
+    box.innerHTML = `
+      <div class="eyebrow">顧客經營線・第三站</div>
+      <h1 class="warn">他抱怨的，通常不是他真正在意的。</h1>
+      <p class="lede">
+        ${D.total} 則客訴裡，${P[0].pain_category}佔 ${P[0].件數} 則，是量最大也最嚴重的一類。
+        但把分類結果當成結論會出事——分類器抓的是關鍵字，
+        而客訴會升級往往不是因為那件事本身，是因為後續沒有人接住。
+      </p>
+
+      <div class="metrics">
+        <div class="m info"><div class="k">客訴總量</div><div class="v">${D.total}</div>
+          <div class="d">涉及 ${D.customers} 位顧客</div></div>
+        <div class="m alert"><div class="k">負面比例</div>
+          <div class="v">${(D.negative_rate*100).toFixed(0)}%</div>
+          <div class="d">含「負」與「強烈負」</div></div>
+        <div class="m alert"><div class="k">量最大的痛點</div>
+          <div class="v" style="font-size:1.15rem">${P[0].pain_category}</div>
+          <div class="d">${P[0].件數} 則・負面率 ${P[0].負面率}%</div></div>
+        <div class="m warm"><div class="k">負面率最高</div>
+          <div class="v" style="font-size:1.15rem">${worst.pain_category}</div>
+          <div class="d">${worst.負面率}%・件數少但幾乎沒滿意的</div></div>
+      </div>
+
+      <h2>量大不等於嚴重</h2>
+      <p class="cap">橫軸是件數，縱軸是負面率，圓圈大小是嚴重度加總。
+        右上角是又多又糟的；左下角的「${calm.pain_category}」負面率只有 ${calm.負面率}%——
+        顧客提到它多半不是在抱怨。</p>
+      <div class="panel"><div id="bubble"></div></div>
+
+      <h2>會不會越積越多</h2>
+      <p class="cap">看的是趨勢不是單月高低。</p>
+      <div class="panel"><div id="trend"></div>
+        <div class="legend">${cats.map(c =>
+          `<span><i style="background:${PC[c]||C.mute}"></i>${c}</span>`).join('')}</div></div>
+
+      <h2>先看關鍵字，再讀全文</h2>
+      <p class="lede">
+        這是整份分析裡我最不敢只靠模型的一段。分類器會把
+        「等了五天，客服打三次都沒人處理」判成配送延遲——因為關鍵字是「等了五天」。
+        但真正讓這位顧客決定不再回來的，是後面那句。
+      </p>
+      <p>
+        判讀原則：<b>先看關鍵字，再讀全文，最後問他真正在意的是什麼。</b>
+        自動分類負責把 ${D.total} 則縮小到值得人看的範圍，不負責下結論。
+      </p>
+
+      <h2>自己翻翻原文</h2>
+      <div class="ctrl">
+        <label>痛點</label>
+        <select id="fp"><option value="">全部</option>
+          ${D.pain.map(p => `<option>${p.pain_category}</option>`).join('')}</select>
+        <label>情緒</label>
+        <select id="fs"><option value="">全部</option>
+          <option>強烈負</option><option>負</option><option>中性</option><option>正</option></select>
+        <span class="pill" id="cnt"></span>
+      </div>
+      <div class="panel"><div class="scroll"><table id="tbl">
+        <thead><tr><th>編號</th><th>時間</th><th>管道</th><th>情緒</th>
+          <th>分類</th><th>內容</th></tr></thead><tbody></tbody></table></div></div>
+
+      <h2>各類的嚴重度</h2>
+      <div class="panel"><div class="scroll"><table>
+        <thead><tr><th>痛點</th><th class="n">件數</th><th class="n">負面件數</th>
+          <th class="n">負面率</th><th class="n">嚴重度總分</th><th class="n">涉及顧客</th></tr></thead>
+        <tbody>${P.map(p => `<tr><td><b>${p.pain_category}</b></td>
+          <td class="n">${p.件數}</td><td class="n">${p.負面件數}</td>
+          <td class="n">${p.負面率}%</td><td class="n">${p.嚴重度總分}</td>
+          <td class="n">${p.涉及顧客數}</td></tr>`).join('')}</tbody>
+      </table></div>
+      <p class="cap">嚴重度是情緒的加權分數（強烈負 3、負 2、中性 1、正 0），
+        用來在件數之外反映強度。</p></div>
+
+      <div class="note">
+        情緒與痛點分類為資料集既有欄位，本頁沒有重跑文字分類模型。
+        客訴顧客編號與消費者主檔屬同一體系，${D.total} 則全數對得上，因此允許與流失分析交叉。
+        但要注意這批客訴與供應鏈那條線的門市客戶<b>不是同一批人</b>，兩者沒有合併。
+      </div>
+      ${nextLink('supply.html','賣多少缺多少',
+        '客訴第一名是配送延遲——而配送問題的源頭在補貨與運能，那是另一條線的事')}
+      ${footer()}`;
+
+    el('bubble').innerHTML = scatter(D.pain.map(p => ({
+      x: p.件數, y: p.負面率, r: Math.sqrt(p.嚴重度總分) * 1.9,
+      c: PC[p.pain_category] || C.mute, label: p.pain_category,
+      t: `${p.pain_category}　${p.件數} 則　負面率 ${p.負面率}%　嚴重度 ${p.嚴重度總分}`,
+    })), {w:620, h:380, x0:0, x1:95, y0:-8, y1:100,
+          xlab:'件數', ylab:'負面率 (%)'});
+
+    el('trend').innerHTML = lineChart(cats.map(c => ({
+      c: PC[c] || C.mute,
+      pts: months.map(m => ({
+        d: m, y: (D.trend.find(t => t.month === m && t.pain_category === c) || {件數:0}).件數
+      })),
+    })), {labels: months, w:660, h:300, y0:0});
+
+    const tb = document.querySelector('#tbl tbody');
+    const redraw = () => {
+      const p = el('fp').value, s = el('fs').value;
+      const f = D.samples.filter(x => (!p || x.pain_category === p) && (!s || x.sentiment === s));
+      el('cnt').textContent = `顯示 ${f.length} 則（樣本共 ${D.samples.length} 則）`;
+      tb.innerHTML = f.map(x => `<tr>
+        <td>${x.id}</td><td style="white-space:nowrap">${String(x.timestamp).slice(0,10)}</td>
+        <td>${x.channel}</td>
+        <td>${/強烈負|負/.test(x.sentiment)
+          ? `<span style="color:${C.alert};font-weight:600">${x.sentiment}</span>`
+          : x.sentiment}</td>
+        <td>${x.pain_category}</td><td>${x.content}</td></tr>`).join('')
+        || `<tr><td colspan="6" style="color:var(--mute)">這個組合沒有樣本。</td></tr>`;
+    };
+    el('fp').addEventListener('change', redraw);
+    el('fs').addEventListener('change', redraw);
+    redraw();
+  } catch (e) { fail(box, e); }
+})();
+</script>
+</body>
+</html>

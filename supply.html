@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>庫存｜AI 智慧營運決策中樞</title>
+<link rel="stylesheet" href="assets/app.css">
+<link rel="stylesheet" href="assets/mechanicus.css">
+<style>.chain{display:flex;gap:.4rem;flex-wrap:wrap;align-items:center;margin:.8rem 0 1.2rem}
+.chain b{background:#fff;border:1px solid var(--line);border-radius:3px;padding:.35rem .7rem;
+  font-size:.86rem;font-weight:600}
+.chain i{color:var(--mute);font-style:normal}</style>
+</head>
+<body>
+<div class="wrap" id="app">載入中…</div>
+<script src="assets/chart.js"></script>
+<script src="assets/app.js"></script>
+<script>
+mountNav('supply.html');
+(async () => {
+  const box = document.getElementById('app');
+  try {
+    const D = await load('supply');
+    const F = D.forecast, L = D.linked, inv = D.inventory, isum = D.inventory_summary;
+    const bn = D.bottleneck.find(b => b.溫層 === '冷藏');
+    const win = F.filter(f => f.採用 === 'Prophet').length;
+    const lose = F.length - win;
+    const best = F.slice().sort((a,b) => b.領先幅度 - a.領先幅度)[0];
+    const worst = F.slice().sort((a,b) => a.領先幅度 - b.領先幅度)[0];
+    const big = L[0];
+    const skus = Object.keys(D.series);
+    const falseMatch = D.candidates.find(c => /誤配|不同|否/.test(String(c.人工判定)));
+
+    box.innerHTML = `
+      <div class="eyebrow">供應履約線</div>
+      <h1 class="warn">${big.商品}下月要 ${fmt(big.下月預測)} 件，庫存剩 ${big.目前庫存} 件。
+        補得出來，但送不進去。</h1>
+      <p class="lede">
+        缺口 ${fmt(big.補貨缺口)} 件、前置期 ${big.前置期天} 天，這些都好解決。
+        真正的問題是${big.商品}屬${big.溫層}，而冷藏運能已經用掉 ${bn.產能使用率}%，
+        只剩 ${fmt(bn.剩餘容量kg)} 公斤餘裕。<b>補貨排程和配送排程必須一起看。</b>
+      </p>
+
+      <div class="metrics">
+        <div class="m alert"><div class="k">${big.商品}缺口</div>
+          <div class="v">${fmt(big.補貨缺口)}</div>
+          <div class="d">現有庫存只夠 ${big.涵蓋天數} 天</div></div>
+        <div class="m alert"><div class="k">低於安全存量</div>
+          <div class="v">${isum.below} / ${isum.skus}</div>
+          <div class="d">缺口合計 ${fmt(isum.gap_total)} 件</div></div>
+        <div class="m good"><div class="k">值得用模型的品項</div>
+          <div class="v">${win} / ${F.length}</div>
+          <div class="d">其餘 ${lose} 項用簡單算法更準</div></div>
+        <div class="m info"><div class="k">兩線貫通的商品</div>
+          <div class="v">${L.length}</div>
+          <div class="d">同時有預測與庫存紀錄</div></div>
+      </div>
+
+      <h2>十支商品，${lose} 支不值得用 AI</h2>
+      <p class="cap">
+        每一支都逐一回測：訓練 30 個月、測試最後 6 個月，把模型跟四種簡單算法
+        （上個月一樣、近三個月平均、去年同期、線性外推）比誤差。
+        點落在虛線左邊代表模型較準，右邊代表簡單算法較準。
+      </p>
+      <div class="panel"><div id="fcScatter"></div>
+        <div class="legend"><span><i style="background:${C.good}"></i>模型勝出，採用</span>
+          <span><i style="background:${C.alert}"></i>模型較差，維持原算法</span></div></div>
+      <p>
+        贏最多的是<b>${best.sku_name}</b>：誤差從 ${best.笨方法誤差}% 降到 ${best.模型誤差}%。
+        但<b>${worst.sku_name}</b>用模型反而從 ${worst.笨方法誤差}% 惡化到 ${worst.模型誤差}%，
+        那一支就維持原本的算法。<b>模型維護是有成本的，跑不贏就不該上線。</b>
+      </p>
+
+      <h2>單一商品看細節</h2>
+      <div class="ctrl">
+        <label>商品</label>
+        <select id="sku">${skus.map(s =>
+          `<option value="${s}">${D.series[s].name}</option>`).join('')}</select>
+        <span class="pill" id="skuNote"></span>
+      </div>
+      <div class="panel"><div id="skuChart"></div>
+        <div class="legend">
+          <span><i style="background:${C.navy}"></i>訓練期實際</span>
+          <span><i style="background:${C.ink}"></i>測試期實際</span>
+          <span><i style="background:${C.chill}"></i>模型預測與區間</span></div>
+        <p class="cap">給採購的是區間不是單一數字。給一個數字等於叫他賭博；
+          給上下界，他才知道要備到哪裡、風險邊界在哪。</p></div>
+
+      <h2>回測全表</h2>
+      <div class="panel"><div class="scroll"><table>
+        <thead><tr><th>商品</th><th class="n">模型誤差</th><th>最佳簡單算法</th>
+          <th class="n">簡單算法誤差</th><th class="n">領先</th><th>採用</th>
+          <th class="n">下月預測</th><th class="n">區間</th></tr></thead>
+        <tbody>${F.map(f => `<tr>
+          <td>${f.sku_name}</td><td class="n">${f.模型誤差}%</td>
+          <td>${f.最佳笨方法}</td><td class="n">${f.笨方法誤差}%</td>
+          <td class="n" style="color:${f.領先幅度>0?C.good:C.alert};font-weight:600">
+            ${f.領先幅度>0?'+':''}${f.領先幅度}</td>
+          <td>${f.採用==='Prophet'?'<b>模型</b>':f.採用}</td>
+          <td class="n">${fmt(f.下月預測)}</td>
+          <td class="n" style="font-size:.8rem">${fmt(f.區間下限)}–${fmt(f.區間上限)}</td>
+        </tr>`).join('')}</tbody>
+      </table></div></div>
+
+      <h2>從「賣多少」接到「送多少」</h2>
+      <p class="lede">
+        預測管的是零售商品，庫存管的是生鮮商品，兩套編碼互不相通。
+        自動比對能找到 ${D.candidates.length} 組疑似同物，
+        其中「${falseMatch ? falseMatch.零售主檔 + ' → ' + falseMatch.生鮮主檔 : ''}」是誤配。
+        逐項人工核對後，只有 <b>${L.length} 項</b>同時具備預測與庫存，能真正貫通整條鏈。
+        <b>橋很窄，但每一格都查得到出處。</b>
+      </p>
+      <div class="chain">
+        <b>歷史銷量</b><i>→</i><b>需求預測</b><i>→</i><b>目前庫存</b><i>→</i>
+        <b>補貨缺口</b><i>→</i><b>依門市配送量分配</b><i>→</i><b>配送重量</b>
+      </div>
+      <div class="panel"><div class="scroll"><table>
+        <thead><tr><th>零售品名</th><th>庫存品名</th><th>溫層</th><th class="n">下月預測</th>
+          <th class="n">目前庫存</th><th class="n">安全存量</th><th class="n">前置期</th>
+          <th class="n">缺口</th><th class="n">庫存可撐</th></tr></thead>
+        <tbody>${L.map(r => `<tr>
+          <td><b>${r.商品}</b></td><td>${r.庫存品名}</td>
+          <td><span class="tag t-${r.溫層}">${r.溫層}</span></td>
+          <td class="n">${fmt(r.下月預測)}</td><td class="n">${r.目前庫存}</td>
+          <td class="n">${r.安全存量}</td><td class="n">${r.前置期天} 天</td>
+          <td class="n" style="font-weight:700">${fmt(r.補貨缺口)}</td>
+          <td class="n" style="${r.涵蓋天數<7?`color:${C.alert};font-weight:700`:''}">
+            ${r.涵蓋天數} 天</td></tr>`).join('')}</tbody>
+      </table></div></div>
+
+      <h3>兩套商品主檔的比對結果</h3>
+      <div class="panel"><div class="scroll"><table>
+        <thead><tr><th>零售主檔</th><th>生鮮主檔</th><th class="n">字串相似度</th>
+          <th>人工判定</th></tr></thead>
+        <tbody>${D.candidates.map(c => {
+          const bad = /誤配|不同|否/.test(String(c.人工判定));
+          return `<tr${bad?` style="background:#FBEFEE"`:''}>
+            <td>${c.零售主檔}</td><td>${c.生鮮主檔}</td>
+            <td class="n">${(c.相似度*100).toFixed(0)}%</td>
+            <td style="${bad?`color:${C.alert};font-weight:700`:''}">${c.人工判定}</td></tr>`;
+        }).join('')}</tbody>
+      </table></div>
+      <p class="cap">相似度最高的那幾組不見得是對的。字串比對能篩，不能判。</p></div>
+
+      <h3>缺口怎麼分到各門市</h3>
+      <p class="cap">分配權重用門市實際配送量，不用虛構的客戶歸屬。
+        好市多與 Cama 咖啡的需求差近百倍，那是資料裡真實存在的業態結構，
+        用隨機映射推導會把它抹平。</p>
+      <div class="panel"><div class="scroll"><table>
+        <thead><tr><th>門市</th><th>溫層</th><th>商品</th>
+          <th class="n">配送量占比</th><th class="n">分配補貨量</th></tr></thead>
+        <tbody>${D.allocation.slice(0,18).map(a => `<tr>
+          <td>${a.store_name}</td>
+          <td><span class="tag t-${a.temp_zone}">${a.temp_zone}</span></td>
+          <td>${a.商品}</td>
+          <td class="n">${(a.配送量占比*100).toFixed(1)}%</td>
+          <td class="n">${fmt(a.分配補貨量,1)}</td></tr>`).join('')}</tbody>
+      </table></div>
+      <p class="cap">顯示前 18 筆，共 ${D.allocation.length} 筆。</p></div>
+
+      <h2>生鮮庫存現況</h2>
+      <p class="cap">依「缺口 × 前置期」排序：缺得多又等得久的先下單。</p>
+      <div class="panel"><div class="scroll"><table>
+        <thead><tr><th>品項</th><th>溫層</th><th class="n">現有</th><th class="n">安全存量</th>
+          <th class="n">缺口</th><th class="n">滿足率</th><th class="n">前置期</th><th>狀態</th></tr></thead>
+        <tbody>${inv.filter(r => r.below_safe).map(r => `<tr>
+          <td>${r.sku_name}</td>
+          <td><span class="tag t-${r.temp_zone}">${r.temp_zone}</span></td>
+          <td class="n">${r.current_qty}</td><td class="n">${r.safe_stock}</td>
+          <td class="n" style="font-weight:600">${r.gap_qty}</td>
+          <td class="n" style="${r.fill_rate<50?`color:${C.alert};font-weight:700`:''}">
+            ${r.fill_rate}%</td>
+          <td class="n">${r.lead_time_days} 天</td><td>${r.status}</td></tr>`).join('')}</tbody>
+      </table></div></div>
+
+      <div class="note">
+        回測方式：每項商品以前 30 個月訓練、後 6 個月測試，比較 Prophet 與四種簡單算法，
+        取誤差較低者作為該品項的正式方法，再以全部 36 個月重新配適並預測下一期。
+        誤差指標為 MAPE。預測商品（零售雜貨）與庫存商品（生鮮）分屬不同編碼體系，
+        只有經人工核對的 ${L.length} 項允許貫通，其餘一律不接。
+      </div>
+      ${nextLink('delivery.html','怎麼送',
+        `因為${big.商品}補得出來卻送不進去——冷藏運能只剩 ${fmt(bn.剩餘容量kg)} 公斤`)}
+      ${footer()}`;
+
+    const lim = Math.max(...F.flatMap(f => [f.模型誤差, f.笨方法誤差])) * 1.15;
+    el('fcScatter').innerHTML = scatter(F.map(f => ({
+      x: f.模型誤差, y: f.笨方法誤差, r: 6.5,
+      c: f.採用 === 'Prophet' ? C.good : C.alert,
+      label: f.sku_name,
+      t: `${f.sku_name}　模型 ${f.模型誤差}%　簡單算法 ${f.笨方法誤差}%（${f.最佳笨方法}）`,
+    })), {w:640, h:420, x0:0, x1:lim, y0:0, y1:lim, diag:true,
+          xlab:'模型誤差 MAPE (%)', ylab:'簡單算法誤差 MAPE (%)', xdec:1, ydec:1});
+
+    const drawSku = () => {
+      const id = el('sku').value, s = D.series[id];
+      const row = F.find(f => f.sku_id === id);
+      el('skuNote').textContent =
+        `採用 ${row.採用}・測試期誤差 ${row.採用誤差}%・${row.預測月份} 建議備貨 `
+        + `${fmt(row.下月預測)}（${fmt(row.區間下限)}–${fmt(row.區間上限)}）`;
+      const labels = s.history.map(d => d.d).concat(s.test.map(d => d.d));
+      el('skuChart').innerHTML = lineChart([
+        {c: C.navy, pts: s.history},
+        {c: C.ink, pts: s.test, w: 2.6},
+        {c: C.chill, pts: s.pred, dash: true, band: true},
+      ], {labels, w:680, h:340});
+    };
+    el('sku').addEventListener('change', drawSku);
+    drawSku();
+  } catch (e) { fail(box, e); }
+})();
+</script>
+</body>
+</html>
