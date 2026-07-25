@@ -78,21 +78,18 @@ function runTool(name, args) {
         + DATA.supply.linked.map(x => x.商品).join('、') + ' 這幾項能從預測貫通到庫存。'};
     }
     case 'write_alert': {
-  const filename =
-    typeof args?.filename === 'string'
-      ? args.filename.trim()
-      : '';
+const today =
+  new Date().toISOString().slice(0, 10).replace(/-/g, '');
 
-  const content =
-    typeof args?.content === 'string'
-      ? args.content
-      : '';
+const filename =
+  typeof args?.filename === 'string' && args.filename.trim()
+    ? args.filename.trim()
+    : `alerts/日報_${today}.md`;
 
-  if (!filename) {
-    return {
-      拒絕: 'write_alert 缺少 filename，請重新呼叫並提供檔名'
-    };
-  }
+const content =
+  typeof args?.content === 'string'
+    ? args.content
+    : '';
 
   if (!content) {
     return {
