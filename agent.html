@@ -54,6 +54,7 @@ const TOOLS = [
 const DENY = /rm |delete|drop table|truncate|修改|覆寫|寫入.*csv|update .*set|curl|wget|http/i;
 
 function runTool(name, args) {
+  args = args && typeof args === 'object' ? args : {};
   switch (name) {
     case 'list_events': {
       let e = DATA.events.events;
@@ -77,59 +78,50 @@ function runTool(name, args) {
       return r || {錯誤:`找不到「${args.name}」。目前只有 `
         + DATA.supply.linked.map(x => x.商品).join('、') + ' 這幾項能從預測貫通到庫存。'};
     }
-case 'write_alert': {
-  if (DATA._alerts.length > 0) {
-    return {
-      拒絕: '本次巡檢已經產生日報，不得重複寫入'
-    };
-  }
-const today =
-  new Date().toISOString().slice(0, 10).replace(/-/g, '');
+    case 'write_alert': {
+      // 一次巡檢只允許產生一份日報，避免模型重複寫入。
+      if (DATA._alerts.length > 0) {
+        return {拒絕:'本次巡檢已經產生日報，不得重複寫入'};
+      }
 
-const filename =
-  typeof args?.filename === 'string' && args.filename.trim()
-    ? args.filename.trim()
-    : `alerts/日報_${today}.md`;
+      const today = new Date().toISOString().slice(0, 10).replace(/-/g, '');
 
-const content =
-  typeof args?.content === 'string'
-    ? args.content
-    : '';
+      // 模型漏傳 filename 時，自動補成今天的日報檔名。
+      const filename =
+        typeof args.filename === 'string' && args.filename.trim()
+          ? args.filename.trim()
+          : `alerts/日報_${today}.md`;
 
-  if (!content) {
-    return {
-      拒絕: 'write_alert 缺少 content，請重新呼叫並提供內容'
-    };
-  }
+      const content =
+        typeof args.content === 'string'
+          ? args.content
+          : '';
 
-  if (DENY.test(filename)) {
-    return {
-      拒絕: '檔名不在允許範圍'
-    };
-  }
+      if (!content.trim()) {
+        return {拒絕:'write_alert 缺少 content，請重新呼叫並提供日報內容'};
+      }
 
-  const rawName = filename.replace(/^alerts\//, '');
+      if (DENY.test(filename)) {
+        return {拒絕:'檔名不在允許範圍'};
+      }
 
-  const safeName =
-    rawName.replace(/[^\w\u4e00-\u9fa5.\-]/g, '_');
+      // 接受 alerts/日報_YYYYMMDD.md 或 日報_YYYYMMDD.md，
+      // 但實際一律放在虛擬 alerts/ 目錄。
+      const rawName = filename.replace(/^alerts\//i, '');
+      const safeName = rawName.replace(/[^\w\u4e00-\u9fa5.\-]/g, '_');
 
-  if (!/\.md$/i.test(safeName)) {
-    return {
-      拒絕: '只允許寫入 alerts/ 目錄下的 .md 檔'
-    };
-  }
+      if (!safeName || !/\.md$/i.test(safeName)) {
+        return {拒絕:'只允許寫入 alerts/ 目錄下的 .md 檔'};
+      }
 
-  DATA._alerts.push({
-    name: safeName,
-    body: content
-  });
+      DATA._alerts.push({name:safeName, body:content});
 
-  return {
-    結果: '已寫入',
-    檔名: `alerts/${safeName}`,
-    位元組: new TextEncoder().encode(content).length
-  };
-}
+      return {
+        結果:'已寫入',
+        檔名:`alerts/${safeName}`,
+        位元組:new TextEncoder().encode(content).length
+      };
+    }
     default:
       return {拒絕:`沒有名為 ${name} 的工具`};
   }
@@ -142,8 +134,9 @@ const SYSTEM = `你是一家中部生鮮宅配商的值班 Agent。你的職責�
 1. 先呼叫 list_events 看今天有哪些事件。
 2. 針對庫存或配送相關的事件，呼叫 get_inventory、get_capacity 或 get_product_chain 取得數字佐證。
 3. 只針對「可自動化」為 true 的事件寫提醒。標為需人工判斷的，在結論中列出但不要自己處理。
-4. 呼叫 write_alert 寫入一份 Markdown 值班日報，檔名格式 alerts/日報_YYYYMMDD.md。
-5. 完成 write_alert 後，不得再呼叫任何工具，必須立即用繁體中文輸出三到五句值班主管結論。
+4. 呼叫 write_alert 寫入一份 Markdown 值班日報。filename 與 content 都是必填欄位；
+   filename 必須使用 alerts/日報_YYYYMMDD.md 格式，而且一次巡檢只能寫一份。
+5. write_alert 成功後不得再呼叫任何工具，必須立即用繁體中文輸出三到五句值班主管結論。
 
 不准做的事：
 - 不修改任何來源資料，不執行刪除指令，不存取外部網路。
@@ -152,27 +145,75 @@ const SYSTEM = `你是一家中部生鮮宅配商的值班 Agent。你的職責�
 
 所有數字必須來自工具回傳結果。`;
 
-async function callModel(messages, passcode) {
+async function callModel(messages, passcode, tools = TOOLS) {
   if (!apiEnabled) {
     const stopped = new Error('API 已手動斷開');
     stopped.name = 'AbortError';
     throw stopped;
   }
-  if (callsUsed >= MAX_CALLS) throw new Error('本次展示額度已用完');
+
+  if (callsUsed >= MAX_CALLS) {
+    throw new Error('本次展示額度已用完');
+  }
+
   callsUsed++;
   activeRequestController = new AbortController();
+
   try {
+    const payload = {passcode, messages};
+
+    // tools = [] 時不把工具送給模型，強制它只能輸出文字結論。
+    if (Array.isArray(tools) && tools.length > 0) {
+      payload.tools = tools;
+    }
+
     const r = await fetch(WORKER, {
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({passcode, messages, tools:TOOLS}),
-      signal: activeRequestController.signal,
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(payload),
+      signal:activeRequestController.signal,
     });
-    const d = await r.json();
-    if (!r.ok) throw new Error(d.error || `HTTP ${r.status}`);
-    return d.choices[0].message;
+
+    const raw = await r.text();
+    let d;
+
+    try {
+      d = raw ? JSON.parse(raw) : {};
+    } catch {
+      throw new Error(`模型服務回傳非 JSON 內容（HTTP ${r.status}）`);
+    }
+
+    if (!r.ok) {
+      throw new Error(d.error || `HTTP ${r.status}`);
+    }
+
+    const message = d?.choices?.[0]?.message;
+    if (!message) {
+      throw new Error('模型回應缺少 choices[0].message');
+    }
+
+    return message;
   } finally {
     activeRequestController = null;
   }
+}
+
+function buildFallbackConclusion() {
+  const events = runTool('list_events', {});
+  const inv = runTool('get_inventory', {only_below:true});
+  const urgent = inv.filter(i => Number(i.滿足率) < 50);
+  const cap = runTool('get_capacity', {});
+  const cold = Array.isArray(cap) ? cap.find(c => c.溫層 === '冷藏') : null;
+  const humanN = events.filter(e => !e.可自動化).length;
+
+  const coldText = cold
+    ? `冷藏產能使用率 ${cold.產能使用率}%，剩餘 ${cold.剩餘容量kg} 公斤。`
+    : '冷藏產能資料未能取得。';
+
+  return `巡檢完成，共發現 ${inv.length} 項低於安全存量，其中 ${urgent.length} 項低於安全存量一半。`
+    + `${coldText}`
+    + `另有 ${humanN} 則事件需要人工判斷，系統沒有自行處理。`
+    + `模型未在限定回合內輸出文字，因此此處顯示依工具結果產生的保底結論。`;
 }
 
 /* ── 離線規則版：同一套判斷，不呼叫模型 ── */
@@ -341,34 +382,134 @@ function offlineRun(log) {
 
       try {
         setStat(true, '連線中…');
-        let msgs = [{role:'system', content:SYSTEM}, {role:'user', content:userMsg}];
+        let msgs = [
+          {role:'system', content:SYSTEM},
+          {role:'user', content:userMsg}
+        ];
+
+        let alertWritten = false;
+        let gotConclusion = false;
+
         for (let round = 0; round < MAX_ROUNDS; round++) {
           const m = await callModel(msgs, pass);
           msgs.push(m);
+
           if (m.tool_calls && m.tool_calls.length) {
             for (const tc of m.tool_calls) {
               let args = {};
-              try { args = JSON.parse(tc.function.arguments || '{}'); } catch {}
-              log('call', tc.function.name, JSON.stringify(args).slice(0, 400));
+
+              try {
+                args = JSON.parse(tc.function.arguments || '{}');
+              } catch {
+                args = {};
+              }
+
+              log(
+                'call',
+                tc.function.name,
+                JSON.stringify(args).slice(0, 400)
+              );
+
               const out = runTool(tc.function.name, args);
+
+              if (
+                tc.function.name === 'write_alert' &&
+                out &&
+                out.結果 === '已寫入'
+              ) {
+                alertWritten = true;
+              }
+
               const isDeny = out && out.拒絕;
-              log(isDeny ? 'deny' : 'res',
+
+              log(
+                isDeny ? 'deny' : 'res',
                 isDeny ? out.拒絕 : `${tc.function.name} 回傳`,
-                JSON.stringify(out).slice(0, 700));
-              msgs.push({role:'tool', tool_call_id:tc.id, content:JSON.stringify(out)});
+                JSON.stringify(out).slice(0, 700)
+              );
+
+              msgs.push({
+                role:'tool',
+                tool_call_id:tc.id,
+                content:JSON.stringify(out)
+              });
             }
+
+            // 日報成功寫入後，立即關閉工具，再向模型索取最後結論。
+            if (alertWritten) {
+              msgs.push({
+                role:'system',
+                content:
+                  '值班日報已成功寫入。現在禁止再呼叫任何工具。'
+                  + '請只根據前面的工具結果，立即用繁體中文輸出三到五句值班主管結論，'
+                  + '說明最緊急的庫存問題、運能狀態，以及需要人工處理的事件。'
+              });
+
+              if (callsUsed < MAX_CALLS) {
+                const finalMessage = await callModel(msgs, pass, []);
+
+                if (
+                  typeof finalMessage.content === 'string' &&
+                  finalMessage.content.trim()
+                ) {
+                  log('say', finalMessage.content.trim());
+                  gotConclusion = true;
+                }
+              }
+
+              if (!gotConclusion) {
+                log('say', buildFallbackConclusion());
+                gotConclusion = true;
+              }
+
+              break;
+            }
+
             continue;
           }
-          if (m.content) log('say', m.content);
+
+          if (
+            typeof m.content === 'string' &&
+            m.content.trim()
+          ) {
+            log('say', m.content.trim());
+            gotConclusion = true;
+          }
+
           break;
         }
+
+        // 回合用完但仍沒有文字結論時，再做一次無工具總結。
+        if (!gotConclusion && callsUsed < MAX_CALLS) {
+          msgs.push({
+            role:'system',
+            content:
+              '工具階段已結束。禁止再呼叫任何工具。'
+              + '請只根據已取得的工具結果，用繁體中文輸出三到五句值班主管結論。'
+          });
+
+          const finalMessage = await callModel(msgs, pass, []);
+
+          if (
+            typeof finalMessage.content === 'string' &&
+            finalMessage.content.trim()
+          ) {
+            log('say', finalMessage.content.trim());
+            gotConclusion = true;
+          }
+        }
+
+        if (!gotConclusion) {
+          log('say', buildFallbackConclusion());
+        }
+
         setStat(true, `完成・已用 ${callsUsed}/${MAX_CALLS} 次額度`);
       } catch (e) {
         if (e.name === 'AbortError' || !apiEnabled) {
           log('res', 'API 已手動斷開，後續請求已停止。');
           setStat(false, 'API 已斷開');
         } else {
-          log('deny', '無法連線到模型服務', e.message);
+          log('deny', '巡檢流程執行失敗', e?.message || String(e));
           log('res', '自動切換成離線規則版，執行相同的巡檢流程。');
           setStat(false, '離線規則版');
           offlineRun(log);
