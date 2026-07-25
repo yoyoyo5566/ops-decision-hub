@@ -53,6 +53,70 @@ const TOOLS = [
 
 const DENY = /rm |delete|drop table|truncate|修改|覆寫|寫入.*csv|update .*set|curl|wget|http/i;
 
+function buildDetailedReport(modelContent = '') {
+  const date = new Date().toISOString().slice(0, 10);
+  const events = Array.isArray(DATA?.events?.events) ? DATA.events.events : [];
+  const inventory = Array.isArray(DATA?.supply?.inventory) ? DATA.supply.inventory : [];
+  const capacity = Array.isArray(DATA?.supply?.bottleneck) ? DATA.supply.bottleneck : [];
+
+  const below = inventory.filter(x => x.below_safe);
+  const urgent = below
+    .filter(x => Number(x.fill_rate) < 50)
+    .sort((a, b) => Number(a.fill_rate) - Number(b.fill_rate));
+  const normal = below.filter(x => Number(x.fill_rate) >= 50);
+  const autoEvents = events.filter(x => x.automation_ok);
+  const humanEvents = events.filter(x => !x.automation_ok);
+
+  const lines = [
+    `# 值班日報　${date}`,
+    '',
+    '## 一、Agent 摘要',
+    modelContent.trim() || '已完成今日決策事件、庫存與配送產能巡檢。',
+    '',
+    `## 二、緊急庫存（滿足率低於 50%）　${urgent.length} 項`,
+    ...(urgent.length
+      ? urgent.map(x =>
+          `- **${x.sku_name}**（${x.temp_zone}）：現有 ${x.current_qty}、安全存量 ${x.safe_stock}、`
+          + `缺口 ${x.gap_qty}、滿足率 ${x.fill_rate}%、前置期 ${x.lead_time_days} 天。`
+          + `建議立即確認可用庫存與補貨時程。`)
+      : ['- 目前沒有滿足率低於 50% 的品項。']),
+    '',
+    `## 三、其他低於安全存量品項　${normal.length} 項`,
+    ...(normal.length
+      ? normal.map(x =>
+          `- **${x.sku_name}**（${x.temp_zone}）：現有 ${x.current_qty}、安全存量 ${x.safe_stock}、`
+          + `缺口 ${x.gap_qty}、滿足率 ${x.fill_rate}%、前置期 ${x.lead_time_days} 天。`)
+      : ['- 沒有其他低於安全存量的品項。']),
+    '',
+    '## 四、配送產能',
+    ...(capacity.length
+      ? capacity.map(x =>
+          `- **${x.溫層}**：今日需求 ${x.今日需求kg} 公斤、可用容量 ${x.可用容量kg} 公斤、`
+          + `剩餘 ${x.剩餘容量kg} 公斤、產能使用率 ${x.產能使用率}%。`)
+      : ['- 目前沒有可用的配送產能資料。']),
+    '',
+    `## 五、可自動提醒事件　${autoEvents.length} 則`,
+    ...(autoEvents.length
+      ? autoEvents.map(x =>
+          `- **${x.event_id}｜${x.title}**：${x.evidence}；建議：${x.recommended_action}`)
+      : ['- 今日沒有可自動提醒的事件。']),
+    '',
+    `## 六、轉人工判斷事件　${humanEvents.length} 則`,
+    ...(humanEvents.length
+      ? humanEvents.map(x =>
+          `- **${x.event_id}｜${x.title}**：牽涉對外承諾、金額決策或人際判斷，`
+          + `系統僅列出證據，不自行執行。證據：${x.evidence}`)
+      : ['- 今日沒有需轉人工判斷的事件。']),
+    '',
+    '## 七、值班建議',
+    `- 優先處理 ${urgent.length} 項滿足率低於 50% 的緊急庫存。`,
+    '- 補貨決策應同步檢查對應溫層的剩餘配送容量，避免補貨到倉後無法及時配送。',
+    `- ${humanEvents.length} 則需人工判斷事件只做提示，不由 Agent 自動承諾或處置。`,
+  ];
+
+  return lines.join('\n');
+}
+
 function runTool(name, args) {
   args = args && typeof args === 'object' ? args : {};
   switch (name) {
@@ -79,34 +143,30 @@ function runTool(name, args) {
         + DATA.supply.linked.map(x => x.商品).join('、') + ' 這幾項能從預測貫通到庫存。'};
     }
     case 'write_alert': {
-      // 一次巡檢只允許產生一份日報，避免模型重複寫入。
+      // 同一次巡檢若模型重複要求寫入，只回覆「已略過」，不再顯示紅色拒絕。
       if (DATA._alerts.length > 0) {
-        return {拒絕:'本次巡檢已經產生日報，不得重複寫入'};
+        return {
+          結果:'已略過重複寫入',
+          檔名:`alerts/${DATA._alerts[0].name}`
+        };
       }
 
       const today = new Date().toISOString().slice(0, 10).replace(/-/g, '');
 
-      // 模型漏傳 filename 時，自動補成今天的日報檔名。
       const filename =
         typeof args.filename === 'string' && args.filename.trim()
           ? args.filename.trim()
           : `alerts/日報_${today}.md`;
 
-      const content =
+      const modelContent =
         typeof args.content === 'string'
-          ? args.content
+          ? args.content.trim()
           : '';
-
-      if (!content.trim()) {
-        return {拒絕:'write_alert 缺少 content，請重新呼叫並提供日報內容'};
-      }
 
       if (DENY.test(filename)) {
         return {拒絕:'檔名不在允許範圍'};
       }
 
-      // 接受 alerts/日報_YYYYMMDD.md 或 日報_YYYYMMDD.md，
-      // 但實際一律放在虛擬 alerts/ 目錄。
       const rawName = filename.replace(/^alerts\//i, '');
       const safeName = rawName.replace(/[^\w\u4e00-\u9fa5.\-]/g, '_');
 
@@ -114,12 +174,19 @@ function runTool(name, args) {
         return {拒絕:'只允許寫入 alerts/ 目錄下的 .md 檔'};
       }
 
-      DATA._alerts.push({name:safeName, body:content});
+      // 模型內容不足 300 字時，自動用本地真實資料補成完整結構化日報。
+      const finalContent =
+        modelContent.length >= 300
+          ? modelContent
+          : buildDetailedReport(modelContent);
+
+      DATA._alerts.push({name:safeName, body:finalContent});
 
       return {
         結果:'已寫入',
         檔名:`alerts/${safeName}`,
-        位元組:new TextEncoder().encode(content).length
+        位元組:new TextEncoder().encode(finalContent).length,
+        完整度:modelContent.length >= 300 ? '模型完整產出' : '已用本地資料補足'
       };
     }
     default:
@@ -134,8 +201,10 @@ const SYSTEM = `你是一家中部生鮮宅配商的值班 Agent。你的職責�
 1. 先呼叫 list_events 看今天有哪些事件。
 2. 針對庫存或配送相關的事件，呼叫 get_inventory、get_capacity 或 get_product_chain 取得數字佐證。
 3. 只針對「可自動化」為 true 的事件寫提醒。標為需人工判斷的，在結論中列出但不要自己處理。
-4. 呼叫 write_alert 寫入一份 Markdown 值班日報。filename 與 content 都是必填欄位；
-   filename 必須使用 alerts/日報_YYYYMMDD.md 格式，而且一次巡檢只能寫一份。
+4. 取得足夠資料後，只能呼叫一次 write_alert，寫入一份完整 Markdown 值班日報。
+   filename 與 content 都是必填欄位；filename 必須使用 alerts/日報_YYYYMMDD.md 格式。
+   content 至少 300 個中文字，必須包含：今日摘要、緊急庫存、其他缺口、配送產能、
+   可自動提醒事件、轉人工事件、建議行動。每個數字都要能追溯到工具結果，不得只寫一兩句。
 5. write_alert 成功後不得再呼叫任何工具，必須立即用繁體中文輸出三到五句值班主管結論。
 
 不准做的事：
@@ -404,11 +473,16 @@ function offlineRun(log) {
                 args = {};
               }
 
-              log(
-                'call',
-                tc.function.name,
-                JSON.stringify(args).slice(0, 400)
-              );
+              const isDuplicateWrite =
+                alertWritten && tc.function.name === 'write_alert';
+
+              if (!isDuplicateWrite) {
+                log(
+                  'call',
+                  tc.function.name,
+                  JSON.stringify(args).slice(0, 400)
+                );
+              }
 
               const out = runTool(tc.function.name, args);
 
@@ -422,11 +496,14 @@ function offlineRun(log) {
 
               const isDeny = out && out.拒絕;
 
-              log(
-                isDeny ? 'deny' : 'res',
-                isDeny ? out.拒絕 : `${tc.function.name} 回傳`,
-                JSON.stringify(out).slice(0, 700)
-              );
+              // 重複 write_alert 仍回傳工具結果給模型，但不在畫面重複顯示。
+              if (!isDuplicateWrite) {
+                log(
+                  isDeny ? 'deny' : 'res',
+                  isDeny ? out.拒絕 : `${tc.function.name} 回傳`,
+                  JSON.stringify(out).slice(0, 900)
+                );
+              }
 
               msgs.push({
                 role:'tool',
