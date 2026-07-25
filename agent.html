@@ -30,7 +30,7 @@
 <script src="assets/app.js"></script>
 <script>
 const WORKER = 'https://day20.hhh15121.workers.dev/';
-const MAX_ROUNDS = 6, MAX_CALLS = 10;
+const MAX_ROUNDS = 8, MAX_CALLS = 10;
 let callsUsed = 0, DATA = {};
 let apiEnabled = true, activeRequestController = null;
 
@@ -98,7 +98,7 @@ const SYSTEM = `你是一家中部生鮮宅配商的值班 Agent。你的職責�
 2. 針對庫存或配送相關的事件，呼叫 get_inventory、get_capacity 或 get_product_chain 取得數字佐證。
 3. 只針對「可自動化」為 true 的事件寫提醒。標為需人工判斷的，在結論中列出但不要自己處理。
 4. 呼叫 write_alert 寫入一份 Markdown 值班日報，檔名格式 alerts/日報_YYYYMMDD.md。
-5. 最後用繁體中文寫三到五句總結給值班主管。
+5. 完成 write_alert 後，不得再呼叫任何工具，必須立即用繁體中文輸出三到五句值班主管結論。
 
 不准做的事：
 - 不修改任何來源資料，不執行刪除指令，不存取外部網路。
