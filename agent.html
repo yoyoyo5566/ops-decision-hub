@@ -77,7 +77,12 @@ function runTool(name, args) {
       return r || {錯誤:`找不到「${args.name}」。目前只有 `
         + DATA.supply.linked.map(x => x.商品).join('、') + ' 這幾項能從預測貫通到庫存。'};
     }
-    case 'write_alert': {
+case 'write_alert': {
+  if (DATA._alerts.length > 0) {
+    return {
+      拒絕: '本次巡檢已經產生日報，不得重複寫入'
+    };
+  }
 const today =
   new Date().toISOString().slice(0, 10).replace(/-/g, '');
 
